@@ -12,14 +12,15 @@ import {
   applyEdgeChanges,
   BackgroundVariant,
   ReactFlowProvider,
+  useReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { SimulatorNode } from "@/components/nodes/SimulatorNode";
 import { useSimulatorStore } from "@/store/simulatorStore";
-import { canConnect } from "@/data/nodeTypes";
+import { canConnect, NODE_TYPE_META } from "@/data/nodeTypes";
 import { getDisconnectedNodes } from "@/engine/graphUtils";
 import { toast } from "sonner";
-import type { SimNode, SimEdge } from "@/types/simulator";
+import type { SimNode, SimEdge, SimNodeType } from "@/types/simulator";
 
 const nodeTypes = {
   simNode: SimulatorNode,
@@ -60,6 +61,8 @@ function buildFlowEdges(simEdges: SimEdge[]): Edge[] {
 
 function CanvasInner() {
   const isDraggingRef = useRef(false);
+  const reactFlowWrapper = useRef<HTMLDivElement>(null);
+  const { screenToFlowPosition } = useReactFlow();
 
   // Build initial state from store
   const initialState = useSimulatorStore.getState();
@@ -81,8 +84,6 @@ function CanvasInner() {
     return unsub;
   }, []);
 
-  // Apply ALL node changes locally (position, selection, dimensions, etc.)
-  // This is required in React Flow controlled mode
   const onNodesChange = useCallback((changes: NodeChange[]) => {
     if (useSimulatorStore.getState().isEvaluating) return;
     setFlowNodes((nds) => applyNodeChanges(changes, nds));
@@ -152,6 +153,41 @@ function CanvasInner() {
     useSimulatorStore.getState().selectNode(null);
   }, []);
 
+  // Drop handler for palette drag-and-drop
+  const onDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  }, []);
+
+  const onDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      const type = e.dataTransfer.getData("application/simnode-type") as SimNodeType;
+      if (!type) return;
+
+      const store = useSimulatorStore.getState();
+      if (store.isEvaluating) return;
+
+      const meta = NODE_TYPE_META[type];
+      if (!meta) return;
+
+      // Convert screen position to flow position
+      const position = screenToFlowPosition({ x: e.clientX, y: e.clientY });
+
+      const id = `${type}-${Date.now()}`;
+      const existingCount = store.nodes.filter((n) => n.type === type).length;
+
+      store.addNode({
+        id,
+        type,
+        config: { ...meta.defaultConfig, label: `${meta.label} ${existingCount + 1}` },
+        position,
+      });
+      store.selectNode(id);
+    },
+    [screenToFlowPosition]
+  );
+
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -169,7 +205,7 @@ function CanvasInner() {
   }, []);
 
   return (
-    <div className="w-full h-full relative">
+    <div className="w-full h-full relative" ref={reactFlowWrapper}>
       {isEvaluating && (
         <div className="absolute inset-0 z-10 bg-background/40 backdrop-blur-[1px] flex items-center justify-center pointer-events-auto">
           <div className="text-sm text-muted-foreground animate-pulse">Evaluating...</div>
@@ -187,6 +223,8 @@ function CanvasInner() {
         onEdgesDelete={onEdgesDelete}
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
         nodeTypes={nodeTypes}
         fitView
         className="bg-background"

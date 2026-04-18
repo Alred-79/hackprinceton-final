@@ -13,10 +13,12 @@ import {
   Shield,
   LogIn,
   LogOut,
+  Settings2,
 } from "lucide-react";
 import type { SimNodeType } from "@/types/simulator";
 import { NODE_TYPE_META } from "@/data/nodeTypes";
 import { getModelById } from "@/data/models";
+import { useSimulatorStore } from "@/store/simulatorStore";
 import { cn } from "@/lib/utils";
 
 const ICON_MAP: Record<string, React.FC<{ className?: string }>> = {
@@ -32,12 +34,20 @@ interface SimNodeData {
   contextGateMode?: string;
   isDisconnected?: boolean;
   isRunning?: boolean;
-  optimizationScore?: number; // 0-1, higher = more optimized
+  optimizationScore?: number;
 }
 
 type SimNodeProps = NodeProps & { data: SimNodeData };
 
-/** Returns a scale factor 0.85-1.35 based on model tier/cost */
+// Node types that have configurable settings in the inspector
+const EDITABLE_TYPES = new Set<SimNodeType>([
+  "executor",
+  "evaluator",
+  "router",
+  "context_gate",
+  "tool_rag",
+]);
+
 function getModelScale(modelId?: string): number {
   if (!modelId) return 0.9;
   const model = getModelById(modelId);
@@ -51,23 +61,18 @@ function getModelScale(modelId?: string): number {
   }
 }
 
-/** Returns depth shadow intensity based on model cost */
 function getDepthShadow(modelId?: string): string {
   if (!modelId) return "0 2px 4px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2)";
   const model = getModelById(modelId);
   if (!model) return "0 2px 4px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2)";
   const cost = model.costPer1kTokens;
   if (cost <= 0.3) {
-    // Small: subtle shadow
     return "0 2px 6px rgba(0,0,0,0.25), 0 1px 3px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.06)";
   } else if (cost <= 3.5) {
-    // Medium: moderate depth
     return "0 4px 12px rgba(0,0,0,0.35), 0 2px 4px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.08)";
   } else if (cost <= 12) {
-    // Large: strong depth
     return "0 8px 20px rgba(0,0,0,0.4), 0 4px 8px rgba(0,0,0,0.25), 0 1px 3px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.1)";
   }
-  // XL: dramatic depth
   return "0 12px 28px rgba(0,0,0,0.45), 0 6px 12px rgba(0,0,0,0.3), 0 2px 4px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.12)";
 }
 
@@ -82,15 +87,15 @@ const GLOW_COLORS: Record<string, string> = {
   "node-fallback": "239, 68, 68",
 };
 
-function SimulatorNodeComponent({ data, selected }: SimNodeProps) {
+function SimulatorNodeComponent({ id, data, selected }: SimNodeProps) {
   const meta = NODE_TYPE_META[data.simNodeType];
   const Icon = ICON_MAP[meta.icon] || Brain;
+  const isEditable = EDITABLE_TYPES.has(data.simNodeType) && !data.locked;
 
   const scale = useMemo(() => getModelScale(data.model), [data.model]);
   const depthShadow = useMemo(() => getDepthShadow(data.model), [data.model]);
   const glowRgb = GLOW_COLORS[meta.color] || "59, 130, 246";
 
-  // Optimization glow: 0 = no glow, 1 = max glow
   const optScore = data.optimizationScore ?? 0;
   const isRunning = data.isRunning ?? false;
 
@@ -118,7 +123,6 @@ function SimulatorNodeComponent({ data, selected }: SimNodeProps) {
 
   const showContextWarning = data.simNodeType === "context_gate" && !data.contextGateMode;
 
-  // Build the glow box-shadow for runtime
   const glowIntensity = isRunning ? 0.3 + optScore * 0.7 : 0;
   const glowSpread = isRunning ? 8 + optScore * 24 : 0;
   const glowShadow = isRunning
@@ -129,13 +133,18 @@ function SimulatorNodeComponent({ data, selected }: SimNodeProps) {
     ? `${depthShadow}, ${glowShadow}`
     : depthShadow;
 
-  // 3D perspective tilt — larger models tilt more to show depth
-  const tiltDeg = (scale - 0.88) * 4; // 0deg for small, ~1.7deg for xl
+  const tiltDeg = (scale - 0.88) * 4;
+
+  const handleEditClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    useSimulatorStore.getState().selectNode(id);
+    useSimulatorStore.getState().setActiveRightTab("inspector");
+  };
 
   return (
     <div
       className={cn(
-        "relative rounded-xl border-2 transition-all duration-200",
+        "relative rounded-xl border-2 transition-all duration-200 group",
         colorClasses[meta.color] || "border-border bg-card",
         selected && "ring-2 ring-primary ring-offset-2 ring-offset-background",
         isRunning && "sim-node-running"
@@ -156,6 +165,33 @@ function SimulatorNodeComponent({ data, selected }: SimNodeProps) {
           background: `linear-gradient(90deg, transparent, rgba(255,255,255,${0.08 + scale * 0.06}), transparent)`,
         }}
       />
+
+      {/* Edit button — top-right, only for configurable nodes */}
+      {isEditable && (
+        <button
+          onClick={handleEditClick}
+          className={cn(
+            "absolute -top-2 -right-2 z-10 rounded-full border-2 p-0.5",
+            "bg-card border-border text-muted-foreground",
+            "hover:text-foreground hover:border-primary hover:bg-primary/10",
+            "opacity-0 group-hover:opacity-100 transition-all duration-150",
+            "shadow-md hover:shadow-lg",
+            selected && "opacity-100"
+          )}
+          style={{
+            width: `${Math.round(20 * scale)}px`,
+            height: `${Math.round(20 * scale)}px`,
+          }}
+          title="Edit node configuration"
+        >
+          <Settings2
+            style={{
+              width: `${Math.round(12 * scale)}px`,
+              height: `${Math.round(12 * scale)}px`,
+            }}
+          />
+        </button>
+      )}
 
       {/* Input handles */}
       {data.simNodeType !== "input" && (
