@@ -112,7 +112,10 @@ export function countChainedExecutorsWithoutGate(nodes: SimNode[], edges: SimEdg
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
   let maxChain = 0;
 
-  function countChain(nodeId: string, currentChain: number): void {
+  function countChain(nodeId: string, currentChain: number, visited: Set<string>): void {
+    if (visited.has(nodeId)) return; // prevent infinite recursion on cycles
+    visited.add(nodeId);
+
     const neighbors = adj.get(nodeId) || [];
     for (const neighbor of neighbors) {
       const neighborNode = nodeMap.get(neighbor);
@@ -120,18 +123,18 @@ export function countChainedExecutorsWithoutGate(nodes: SimNode[], edges: SimEdg
       if (neighborNode.type === "executor") {
         const newChain = currentChain + 1;
         maxChain = Math.max(maxChain, newChain);
-        countChain(neighbor, newChain);
+        countChain(neighbor, newChain, new Set(visited));
       } else if (neighborNode.type === "context_gate") {
-        countChain(neighbor, 0);
+        countChain(neighbor, 0, new Set(visited));
       } else {
-        countChain(neighbor, currentChain);
+        countChain(neighbor, currentChain, new Set(visited));
       }
     }
   }
 
   nodes.forEach((n) => {
     if (n.type === "executor") {
-      countChain(n.id, 1);
+      countChain(n.id, 1, new Set());
     }
   });
 

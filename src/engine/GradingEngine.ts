@@ -84,7 +84,9 @@ export function computeDeterministicResults(
         if (adjustedLatency > (longestPath.get(neighbor) || 0)) {
           longestPath.set(neighbor, adjustedLatency);
         }
-        queue.push(neighbor);
+        if (!visited.has(neighbor)) {
+          queue.push(neighbor);
+        }
       }
     }
 

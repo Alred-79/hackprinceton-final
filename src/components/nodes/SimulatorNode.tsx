@@ -3,7 +3,6 @@ import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Lock, AlertTriangle, Brain, CheckCircle, GitBranch, Globe, FileText, Filter, Database, Shield, LogIn, LogOut } from "lucide-react";
 import type { SimNodeType } from "@/types/simulator";
 import { NODE_TYPE_META } from "@/data/nodeTypes";
-import { useSimulatorStore } from "@/store/simulatorStore";
 import { cn } from "@/lib/utils";
 
 const ICON_MAP: Record<string, React.FC<{ className?: string }>> = {
@@ -22,10 +21,9 @@ interface SimNodeData {
 
 type SimNodeProps = NodeProps & { data: SimNodeData };
 
-function SimulatorNodeComponent({ id, data, selected }: SimNodeProps) {
+function SimulatorNodeComponent({ data, selected }: SimNodeProps) {
   const meta = NODE_TYPE_META[data.simNodeType];
   const Icon = ICON_MAP[meta.icon] || Brain;
-  const selectNode = useSimulatorStore((s) => s.selectNode);
 
   const colorClasses: Record<string, string> = {
     "node-input": "border-emerald-500/60 bg-emerald-500/10",
@@ -53,7 +51,6 @@ function SimulatorNodeComponent({ id, data, selected }: SimNodeProps) {
 
   return (
     <div
-      onClick={() => selectNode(id)}
       className={cn(
         "relative rounded-lg border-2 px-4 py-3 min-w-[160px] shadow-md transition-all",
         colorClasses[meta.color] || "border-border bg-card",

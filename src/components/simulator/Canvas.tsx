@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useEffect } from "react";
+import { useCallback, useRef, useState, useEffect } from "react";
 import {
   ReactFlow,
   Background,
@@ -6,10 +6,12 @@ import {
   type Node,
   type Edge,
   type Connection,
-  useNodesState,
-  useEdgesState,
-  addEdge,
+  type NodeChange,
+  type EdgeChange,
+  applyNodeChanges,
+  applyEdgeChanges,
   BackgroundVariant,
+  ReactFlowProvider,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { SimulatorNode } from "@/components/nodes/SimulatorNode";
@@ -23,13 +25,13 @@ const nodeTypes = {
   simNode: SimulatorNode,
 };
 
-function toFlowNodes(simNodes: SimNode[], simEdges: SimEdge[], selectedId: string | null): Node[] {
+function buildFlowNodes(simNodes: SimNode[], simEdges: SimEdge[], selectedNodeId: string | null): Node[] {
   const disconnected = getDisconnectedNodes(simNodes, simEdges);
   return simNodes.map((n) => ({
     id: n.id,
-    type: "simNode",
+    type: "simNode" as const,
     position: n.position,
-    selected: n.id === selectedId,
+    selected: n.id === selectedNodeId,
     draggable: !n.locked,
     deletable: !n.locked,
     data: {
@@ -44,7 +46,7 @@ function toFlowNodes(simNodes: SimNode[], simEdges: SimEdge[], selectedId: strin
   }));
 }
 
-function toFlowEdges(simEdges: SimEdge[]): Edge[] {
+function buildFlowEdges(simEdges: SimEdge[]): Edge[] {
   return simEdges.map((e) => ({
     id: e.id,
     source: e.source,
@@ -56,101 +58,99 @@ function toFlowEdges(simEdges: SimEdge[]): Edge[] {
   }));
 }
 
-export function Canvas() {
-  const {
-    nodes: simNodes,
-    edges: simEdges,
-    selectedNodeId,
-    isEvaluating,
-    addEdge: storeAddEdge,
-    removeNode,
-    removeEdge,
-    updateNodePosition,
-    selectNode,
-  } = useSimulatorStore();
+function CanvasInner() {
+  const isDraggingRef = useRef(false);
 
-  const flowNodes = useMemo(() => toFlowNodes(simNodes, simEdges, selectedNodeId), [simNodes, simEdges, selectedNodeId]);
-  const flowEdges = useMemo(() => toFlowEdges(simEdges), [simEdges]);
+  // Build initial state from store
+  const initialState = useSimulatorStore.getState();
+  const [flowNodes, setFlowNodes] = useState<Node[]>(
+    () => buildFlowNodes(initialState.nodes, initialState.edges, initialState.selectedNodeId)
+  );
+  const [flowEdges, setFlowEdges] = useState<Edge[]>(
+    () => buildFlowEdges(initialState.edges)
+  );
+  const isEvaluating = useSimulatorStore((s) => s.isEvaluating);
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(flowNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(flowEdges);
-
-  // Sync from store -> React Flow
+  // Subscribe to store changes but skip during drag
   useEffect(() => {
-    setNodes(flowNodes);
-  }, [flowNodes, setNodes]);
+    const unsub = useSimulatorStore.subscribe((state) => {
+      if (isDraggingRef.current) return;
+      setFlowNodes(buildFlowNodes(state.nodes, state.edges, state.selectedNodeId));
+      setFlowEdges(buildFlowEdges(state.edges));
+    });
+    return unsub;
+  }, []);
 
-  useEffect(() => {
-    setEdges(flowEdges);
-  }, [flowEdges, setEdges]);
+  // Apply ALL node changes locally (position, selection, dimensions, etc.)
+  // This is required in React Flow controlled mode
+  const onNodesChange = useCallback((changes: NodeChange[]) => {
+    if (useSimulatorStore.getState().isEvaluating) return;
+    setFlowNodes((nds) => applyNodeChanges(changes, nds));
+  }, []);
 
-  const onConnect = useCallback(
-    (connection: Connection) => {
-      if (isEvaluating) return;
+  const onEdgesChange = useCallback((changes: EdgeChange[]) => {
+    if (useSimulatorStore.getState().isEvaluating) return;
+    setFlowEdges((eds) => applyEdgeChanges(changes, eds));
+  }, []);
 
-      const sourceNode = simNodes.find((n) => n.id === connection.source);
-      const targetNode = simNodes.find((n) => n.id === connection.target);
+  const onNodeDragStart = useCallback(() => {
+    isDraggingRef.current = true;
+  }, []);
 
-      if (!sourceNode || !targetNode) return;
+  const onNodeDragStop = useCallback((_: React.MouseEvent, node: Node) => {
+    isDraggingRef.current = false;
+    useSimulatorStore.getState().updateNodePosition(node.id, node.position);
+  }, []);
 
-      if (!canConnect(sourceNode.type, targetNode.type)) {
-        toast.error(`Cannot connect ${sourceNode.type} to ${targetNode.type}`);
-        return;
-      }
+  const onConnect = useCallback((connection: Connection) => {
+    const store = useSimulatorStore.getState();
+    if (store.isEvaluating) return;
 
-      // Check for duplicate edges
-      const exists = simEdges.some(
-        (e) =>
-          e.source === connection.source &&
-          e.target === connection.target &&
-          e.sourceHandle === connection.sourceHandle
-      );
-      if (exists) return;
+    const sourceNode = store.nodes.find((n) => n.id === connection.source);
+    const targetNode = store.nodes.find((n) => n.id === connection.target);
+    if (!sourceNode || !targetNode) return;
 
-      storeAddEdge({
-        id: `e-${Date.now()}`,
-        source: connection.source!,
-        target: connection.target!,
-        sourceHandle: connection.sourceHandle ?? undefined,
-        targetHandle: connection.targetHandle ?? undefined,
-      });
-    },
-    [simNodes, simEdges, isEvaluating, storeAddEdge]
-  );
+    if (!canConnect(sourceNode.type, targetNode.type)) {
+      toast.error(`Cannot connect ${sourceNode.type} to ${targetNode.type}`);
+      return;
+    }
 
-  const onNodeDragStop = useCallback(
-    (_: React.MouseEvent, node: Node) => {
-      updateNodePosition(node.id, node.position);
-    },
-    [updateNodePosition]
-  );
+    const exists = store.edges.some(
+      (e) =>
+        e.source === connection.source &&
+        e.target === connection.target &&
+        e.sourceHandle === connection.sourceHandle
+    );
+    if (exists) return;
 
-  const onNodesDelete = useCallback(
-    (deletedNodes: Node[]) => {
-      if (isEvaluating) return;
-      deletedNodes.forEach((n) => removeNode(n.id));
-    },
-    [isEvaluating, removeNode]
-  );
+    store.addEdge({
+      id: `e-${Date.now()}`,
+      source: connection.source!,
+      target: connection.target!,
+      sourceHandle: connection.sourceHandle ?? undefined,
+      targetHandle: connection.targetHandle ?? undefined,
+    });
+  }, []);
 
-  const onEdgesDelete = useCallback(
-    (deletedEdges: Edge[]) => {
-      if (isEvaluating) return;
-      deletedEdges.forEach((e) => removeEdge(e.id));
-    },
-    [isEvaluating, removeEdge]
-  );
+  const onNodesDelete = useCallback((deletedNodes: Node[]) => {
+    const store = useSimulatorStore.getState();
+    if (store.isEvaluating) return;
+    deletedNodes.forEach((n) => store.removeNode(n.id));
+  }, []);
 
-  const onNodeClick = useCallback(
-    (_: React.MouseEvent, node: Node) => {
-      selectNode(node.id);
-    },
-    [selectNode]
-  );
+  const onEdgesDelete = useCallback((deletedEdges: Edge[]) => {
+    const store = useSimulatorStore.getState();
+    if (store.isEvaluating) return;
+    deletedEdges.forEach((e) => store.removeEdge(e.id));
+  }, []);
+
+  const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
+    useSimulatorStore.getState().selectNode(node.id);
+  }, []);
 
   const onPaneClick = useCallback(() => {
-    selectNode(null);
-  }, [selectNode]);
+    useSimulatorStore.getState().selectNode(null);
+  }, []);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -176,11 +176,12 @@ export function Canvas() {
         </div>
       )}
       <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={isEvaluating ? undefined : onNodesChange}
-        onEdgesChange={isEvaluating ? undefined : onEdgesChange}
+        nodes={flowNodes}
+        edges={flowEdges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        onNodeDragStart={onNodeDragStart}
         onNodeDragStop={onNodeDragStop}
         onNodesDelete={onNodesDelete}
         onEdgesDelete={onEdgesDelete}
@@ -196,5 +197,13 @@ export function Canvas() {
         <Controls className="!bg-card !border-border !shadow-md [&>button]:!bg-card [&>button]:!border-border [&>button]:!text-foreground [&>button:hover]:!bg-muted" />
       </ReactFlow>
     </div>
+  );
+}
+
+export function Canvas() {
+  return (
+    <ReactFlowProvider>
+      <CanvasInner />
+    </ReactFlowProvider>
   );
 }
