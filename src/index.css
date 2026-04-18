@@ -124,6 +124,22 @@ html {
   transform: scale(1.3);
 }
 
+/* Node running glow pulse */
+@keyframes node-glow-pulse {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.15); }
+}
+
+.sim-node-running {
+  animation: node-glow-pulse 1.8s ease-in-out infinite;
+}
+
+/* 3D node hover lift */
+.react-flow__node:hover > div {
+  filter: brightness(1.08);
+  transition: filter 0.2s ease, box-shadow 0.2s ease;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
