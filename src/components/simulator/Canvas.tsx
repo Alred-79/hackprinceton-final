@@ -16,18 +16,46 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { SimulatorNode } from "@/components/nodes/SimulatorNode";
+import { AnimatedEdge } from "@/components/edges/AnimatedEdge";
 import { useSimulatorStore } from "@/store/simulatorStore";
 import { canConnect, NODE_TYPE_META } from "@/data/nodeTypes";
 import { getDisconnectedNodes } from "@/engine/graphUtils";
+import { getModelById } from "@/data/models";
 import { toast } from "sonner";
+import { vibrateTap } from "@/lib/vibrate";
 import type { SimNode, SimEdge, SimNodeType } from "@/types/simulator";
 
 const nodeTypes = {
   simNode: SimulatorNode,
 };
 
+const edgeTypes = {
+  animated: AnimatedEdge,
+};
+
+/** Compute a cost ratio 0–1 for glow coloring (0 = cheapest, 1 = most expensive on canvas) */
+function computeCostRatios(simNodes: SimNode[]): Map<string, number> {
+  const costs = new Map<string, number>();
+  let maxCost = 0;
+  simNodes.forEach((n) => {
+    if (n.config.model) {
+      const model = getModelById(n.config.model);
+      const cost = model ? model.costPer1kTokens : 0;
+      costs.set(n.id, cost);
+      if (cost > maxCost) maxCost = cost;
+    }
+  });
+  const ratios = new Map<string, number>();
+  costs.forEach((cost, id) => {
+    ratios.set(id, maxCost > 0 ? cost / maxCost : 0);
+  });
+  return ratios;
+}
+
 function buildFlowNodes(simNodes: SimNode[], simEdges: SimEdge[], selectedNodeId: string | null): Node[] {
   const disconnected = getDisconnectedNodes(simNodes, simEdges);
+  const costRatios = computeCostRatios(simNodes);
+
   return simNodes.map((n) => ({
     id: n.id,
     type: "simNode" as const,
@@ -43,6 +71,7 @@ function buildFlowNodes(simNodes: SimNode[], simEdges: SimEdge[], selectedNodeId
       routes: n.config.routes,
       contextGateMode: n.config.contextGateMode,
       isDisconnected: disconnected.includes(n.id),
+      costRatio: costRatios.get(n.id) ?? 0,
     },
   }));
 }
@@ -54,8 +83,7 @@ function buildFlowEdges(simEdges: SimEdge[]): Edge[] {
     target: e.target,
     sourceHandle: e.sourceHandle,
     targetHandle: e.targetHandle,
-    animated: false,
-    style: { stroke: "hsl(var(--muted-foreground))", strokeWidth: 2 },
+    type: "animated",
   }));
 }
 
@@ -131,6 +159,7 @@ function CanvasInner() {
       sourceHandle: connection.sourceHandle ?? undefined,
       targetHandle: connection.targetHandle ?? undefined,
     });
+    vibrateTap();
   }, []);
 
   const onNodesDelete = useCallback((deletedNodes: Node[]) => {
@@ -184,6 +213,7 @@ function CanvasInner() {
         position,
       });
       store.selectNode(id);
+      vibrateTap();
     },
     [screenToFlowPosition]
   );
@@ -226,6 +256,7 @@ function CanvasInner() {
         onDragOver={onDragOver}
         onDrop={onDrop}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         fitView
         className="bg-background"
         proOptions={{ hideAttribution: true }}

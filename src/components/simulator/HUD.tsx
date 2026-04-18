@@ -10,6 +10,8 @@ import {
 import { cn } from "@/lib/utils";
 import { useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { vibrateWarning, vibrateError, vibrateSuccess, vibratePulse } from "@/lib/vibrate";
+import { ContextThermometer } from "./ContextThermometer";
 
 export function HUD() {
   const {
@@ -41,6 +43,11 @@ export function HUD() {
 
   const handleRun = async () => {
     if (!currentScenario) return;
+    
+    // Vibrate warning if metrics are over budget before running
+    if (!costOk || !latencyOk) {
+      vibrateWarning();
+    }
     setIsEvaluating(true);
     incrementAttempts();
     setDeterministicResults(liveMetrics);
@@ -92,8 +99,16 @@ export function HUD() {
 
       if (error) throw error;
       setLLMResults(data);
+      
+      // Vibration feedback based on results
+      if (data?.overall?.pass) {
+        vibrateSuccess();
+      } else {
+        vibrateError();
+      }
     } catch {
       setLLMResults(null);
+      vibrateError();
     }
     setIsEvaluating(false);
   };
@@ -220,28 +235,35 @@ export function HUD() {
         </div>
       </div>
 
-      {/* Hints bar */}
-      {currentScenario.hints.length > 0 && (
-        <div className="flex items-start gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={revealNextHint}
-            disabled={hintsRevealed >= currentScenario.hints.length}
-            className="h-7 text-xs gap-1 shrink-0"
-          >
-            <Lightbulb className="h-3 w-3" />
-            Hint ({hintsRevealed}/{currentScenario.hints.length})
-          </Button>
-          {hintsRevealed > 0 && (
-            <div className="flex-1 text-xs text-muted-foreground space-y-0.5">
-              {currentScenario.hints.slice(0, hintsRevealed).map((h, i) => (
-                <p key={i} className="bg-muted/50 rounded px-2 py-1">{h}</p>
-              ))}
-            </div>
-          )}
+      {/* Context Thermometer + Hints bar */}
+      <div className="flex items-start gap-3">
+        <div className="w-56 shrink-0">
+          <ContextThermometer />
         </div>
-      )}
+
+        {/* Hints bar */}
+        {currentScenario.hints.length > 0 && (
+          <div className="flex items-start gap-2 flex-1">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => { revealNextHint(); vibratePulse(); }}
+              disabled={hintsRevealed >= currentScenario.hints.length}
+              className="h-7 text-xs gap-1 shrink-0"
+            >
+              <Lightbulb className="h-3 w-3" />
+              Hint ({hintsRevealed}/{currentScenario.hints.length})
+            </Button>
+            {hintsRevealed > 0 && (
+              <div className="flex-1 text-xs text-muted-foreground space-y-0.5">
+                {currentScenario.hints.slice(0, hintsRevealed).map((h, i) => (
+                  <p key={i} className="bg-muted/50 rounded px-2 py-1">{h}</p>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Attempt counter */}
       {attempts > 0 && !editorialUnlocked && (

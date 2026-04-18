@@ -35,11 +35,11 @@ interface SimNodeData {
   isDisconnected?: boolean;
   isRunning?: boolean;
   optimizationScore?: number;
+  costRatio?: number; // 0–1, 0 = cheapest, 1 = most expensive
 }
 
 type SimNodeProps = NodeProps & { data: SimNodeData };
 
-// Node types that have configurable settings in the inspector
 const EDITABLE_TYPES = new Set<SimNodeType>([
   "executor",
   "evaluator",
@@ -61,22 +61,33 @@ function getModelScale(modelId?: string): number {
   }
 }
 
-function getDepthShadow(modelId?: string): string {
-  if (!modelId) return "0 2px 4px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2)";
+/** Returns reliability-based 3D elevation. Higher reliability = more elevated/prominent */
+function getElevation(modelId?: string): number {
+  if (!modelId) return 1;
   const model = getModelById(modelId);
-  if (!model) return "0 2px 4px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2)";
-  const cost = model.costPer1kTokens;
-  if (cost <= 0.3) {
-    return "0 2px 6px rgba(0,0,0,0.25), 0 1px 3px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.06)";
-  } else if (cost <= 3.5) {
-    return "0 4px 12px rgba(0,0,0,0.35), 0 2px 4px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.08)";
-  } else if (cost <= 12) {
-    return "0 8px 20px rgba(0,0,0,0.4), 0 4px 8px rgba(0,0,0,0.25), 0 1px 3px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.1)";
-  }
-  return "0 12px 28px rgba(0,0,0,0.45), 0 6px 12px rgba(0,0,0,0.3), 0 2px 4px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.12)";
+  if (!model) return 1;
+  // reliability 0.88-0.99 maps to elevation 1-4
+  return 1 + ((model.reliability - 0.88) / 0.11) * 3;
 }
 
-const GLOW_COLORS: Record<string, string> = {
+/** Yellow (cheap) → Orange → Red (expensive) based on cost ratio */
+function getCostGlowColor(costRatio: number): string {
+  // HSL hue: 50 (yellow) → 20 (orange) → 0 (red)
+  const hue = Math.round(50 - costRatio * 50);
+  const saturation = 80 + costRatio * 20;
+  const lightness = 55 - costRatio * 10;
+  return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+}
+
+function getCostGlowRGB(costRatio: number): string {
+  // Yellow: 250,204,21 → Orange: 249,115,22 → Red: 239,68,68
+  const r = Math.round(250 - costRatio * 11);
+  const g = Math.round(204 - costRatio * 136);
+  const b = Math.round(21 + costRatio * 47);
+  return `${r}, ${g}, ${b}`;
+}
+
+const CATEGORY_COLORS: Record<string, string> = {
   "node-input": "34, 197, 94",
   "node-output": "244, 63, 94",
   "node-executor": "59, 130, 246",
@@ -91,13 +102,15 @@ function SimulatorNodeComponent({ id, data, selected }: SimNodeProps) {
   const meta = NODE_TYPE_META[data.simNodeType];
   const Icon = ICON_MAP[meta.icon] || Brain;
   const isEditable = EDITABLE_TYPES.has(data.simNodeType) && !data.locked;
+  const costRatio = data.costRatio ?? 0;
+  const hasCost = !!data.model;
 
   const scale = useMemo(() => getModelScale(data.model), [data.model]);
-  const depthShadow = useMemo(() => getDepthShadow(data.model), [data.model]);
-  const glowRgb = GLOW_COLORS[meta.color] || "59, 130, 246";
+  const elevation = useMemo(() => getElevation(data.model), [data.model]);
+  const categoryRgb = CATEGORY_COLORS[meta.color] || "59, 130, 246";
 
-  const optScore = data.optimizationScore ?? 0;
   const isRunning = data.isRunning ?? false;
+  const optScore = data.optimizationScore ?? 0;
 
   const colorClasses: Record<string, string> = {
     "node-input": "border-emerald-500/60 bg-emerald-950/60",
@@ -123,17 +136,36 @@ function SimulatorNodeComponent({ id, data, selected }: SimNodeProps) {
 
   const showContextWarning = data.simNodeType === "context_gate" && !data.contextGateMode;
 
-  const glowIntensity = isRunning ? 0.3 + optScore * 0.7 : 0;
-  const glowSpread = isRunning ? 8 + optScore * 24 : 0;
-  const glowShadow = isRunning
-    ? `0 0 ${glowSpread}px rgba(${glowRgb}, ${glowIntensity}), 0 0 ${glowSpread * 2}px rgba(${glowRgb}, ${glowIntensity * 0.4})`
+  // 3D shadows — elevation controls depth prominence
+  const baseZ = elevation;
+  const depthShadow = [
+    `0 ${baseZ * 2}px ${baseZ * 4}px rgba(0,0,0,${0.2 + baseZ * 0.05})`,
+    `0 ${baseZ}px ${baseZ * 2}px rgba(0,0,0,${0.15 + baseZ * 0.04})`,
+    `0 ${baseZ * 0.5}px ${baseZ}px rgba(0,0,0,0.1)`,
+    `inset 0 1px 0 rgba(255,255,255,${0.05 + baseZ * 0.02})`,
+  ].join(", ");
+
+  // Cost-based ambient glow (yellow → red)
+  const costGlowRgb = getCostGlowRGB(costRatio);
+  const costGlowIntensity = hasCost ? 0.15 + costRatio * 0.35 : 0;
+  const costGlowSpread = hasCost ? 6 + costRatio * 18 : 0;
+  const costGlowShadow = hasCost
+    ? `0 0 ${costGlowSpread}px rgba(${costGlowRgb}, ${costGlowIntensity})`
     : "";
 
-  const combinedShadow = glowShadow
-    ? `${depthShadow}, ${glowShadow}`
-    : depthShadow;
+  // Runtime optimization glow
+  const runGlowIntensity = isRunning ? 0.3 + optScore * 0.7 : 0;
+  const runGlowSpread = isRunning ? 10 + optScore * 25 : 0;
+  const runGlowShadow = isRunning
+    ? `0 0 ${runGlowSpread}px rgba(${categoryRgb}, ${runGlowIntensity}), 0 0 ${runGlowSpread * 2}px rgba(${categoryRgb}, ${runGlowIntensity * 0.3})`
+    : "";
 
-  const tiltDeg = (scale - 0.88) * 4;
+  const combinedShadow = [depthShadow, costGlowShadow, runGlowShadow]
+    .filter(Boolean)
+    .join(", ");
+
+  // 3D perspective tilt — higher elevation = slight tilt to show depth
+  const tiltDeg = (elevation - 1) * 0.8;
 
   const handleEditClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -150,7 +182,7 @@ function SimulatorNodeComponent({ id, data, selected }: SimNodeProps) {
         isRunning && "sim-node-running"
       )}
       style={{
-        transform: `scale(${scale}) perspective(600px) rotateX(${tiltDeg}deg)`,
+        transform: `scale(${scale}) perspective(800px) rotateX(${tiltDeg}deg) translateZ(${baseZ * 2}px)`,
         boxShadow: combinedShadow,
         minWidth: `${Math.round(140 * scale)}px`,
         padding: `${Math.round(10 * scale)}px ${Math.round(14 * scale)}px`,
@@ -160,11 +192,22 @@ function SimulatorNodeComponent({ id, data, selected }: SimNodeProps) {
     >
       {/* Top highlight bar (3D bevel effect) */}
       <div
-        className="absolute inset-x-0 top-0 h-[1px] rounded-t-xl"
+        className="absolute inset-x-0 top-0 h-[2px] rounded-t-xl"
         style={{
-          background: `linear-gradient(90deg, transparent, rgba(255,255,255,${0.08 + scale * 0.06}), transparent)`,
+          background: `linear-gradient(90deg, transparent, rgba(255,255,255,${0.06 + elevation * 0.03}), transparent)`,
         }}
       />
+
+      {/* Cost glow indicator ring - visible when node has a model */}
+      {hasCost && costRatio > 0.1 && (
+        <div
+          className="absolute inset-0 rounded-xl pointer-events-none"
+          style={{
+            border: `1px solid ${getCostGlowColor(costRatio)}`,
+            opacity: 0.2 + costRatio * 0.3,
+          }}
+        />
+      )}
 
       {/* Edit button — top-right, only for configurable nodes */}
       {isEditable && (
@@ -213,7 +256,9 @@ function SimulatorNodeComponent({ id, data, selected }: SimNodeProps) {
             width: `${Math.round(24 * scale)}px`,
             height: `${Math.round(24 * scale)}px`,
             background: isRunning
-              ? `radial-gradient(circle, rgba(${glowRgb}, 0.3), transparent)`
+              ? `radial-gradient(circle, rgba(${categoryRgb}, 0.3), transparent)`
+              : hasCost
+              ? `radial-gradient(circle, rgba(${costGlowRgb}, 0.1), transparent)`
               : undefined,
           }}
         >
@@ -233,11 +278,25 @@ function SimulatorNodeComponent({ id, data, selected }: SimNodeProps) {
             {data.label}
           </div>
           {data.model && (
-            <div
-              className="text-muted-foreground truncate"
-              style={{ fontSize: `${Math.round(9 * scale)}px`, marginTop: "1px" }}
-            >
-              {data.model}
+            <div className="flex items-center gap-1" style={{ marginTop: "1px" }}>
+              <div
+                className="truncate text-muted-foreground"
+                style={{ fontSize: `${Math.round(9 * scale)}px` }}
+              >
+                {data.model}
+              </div>
+              {/* Tiny cost dot indicator */}
+              {hasCost && (
+                <div
+                  className="shrink-0 rounded-full"
+                  style={{
+                    width: "5px",
+                    height: "5px",
+                    backgroundColor: getCostGlowColor(costRatio),
+                    opacity: 0.8,
+                  }}
+                />
+              )}
             </div>
           )}
         </div>
@@ -246,19 +305,28 @@ function SimulatorNodeComponent({ id, data, selected }: SimNodeProps) {
         {showContextWarning && <AlertTriangle className="h-3 w-3 text-orange-400 shrink-0" />}
       </div>
 
-      {/* Tier indicator bar at bottom */}
-      {data.model && (
-        <div
-          className="absolute inset-x-2 bottom-0 h-[2px] rounded-full"
-          style={{
-            background: `rgba(${glowRgb}, ${0.15 + scale * 0.2})`,
-          }}
-        />
-      )}
+      {/* Bottom elevation bar — thicker = more 3D depth */}
+      <div
+        className="absolute inset-x-0 bottom-0 rounded-b-xl"
+        style={{
+          height: `${Math.max(2, elevation)}px`,
+          background: hasCost
+            ? `linear-gradient(90deg, transparent, rgba(${costGlowRgb}, ${0.2 + costRatio * 0.25}), transparent)`
+            : `linear-gradient(90deg, transparent, rgba(${categoryRgb}, 0.15), transparent)`,
+        }}
+      />
+
+      {/* Side depth bar (left) — simulates a 3D extrusion */}
+      <div
+        className="absolute left-0 inset-y-1 w-[2px] rounded-l-xl"
+        style={{
+          background: `linear-gradient(180deg, rgba(255,255,255,${0.05 + elevation * 0.015}), transparent, rgba(0,0,0,${0.1 + elevation * 0.03}))`,
+        }}
+      />
 
       {/* Output handles */}
       {data.simNodeType === "router" && data.routes ? (
-        data.routes.map((route, i) => (
+        data.routes.map((_, i) => (
           <Handle
             key={`route-${i}`}
             type="source"
