@@ -7,6 +7,7 @@ export const bloatedSwarm: Scenario = {
   description:
     "You've inherited a customer support system where a previous team created a separate Executor for every possible query type. The result is a massive swarm of agents, each with their own expensive model, creating enormous cost and latency. Your job: consolidate this into an efficient architecture that still handles all query types.",
   mode: "fixer",
+  difficulty: "easy",
   expectedInputs: "Customer support queries across refunds, shipping, billing, password resets, product info, complaints",
   expectedOutputs: "Accurate, helpful responses routed to correct handling with reasonable cost and latency",
   availableNodeTypes: ["input", "output", "executor", "evaluator", "router", "context_gate"],

@@ -5,9 +5,54 @@ interface Answer {
   edges: SimEdge[];
 }
 
+const INCIDENT_REPORT_SCHEMA = JSON.stringify({
+  type: "object",
+  properties: {
+    severity: { type: "string", enum: ["P1-Critical", "P2-High", "P3-Medium", "P4-Low"] },
+    title: { type: "string" },
+    affected_systems: { type: "array", items: { type: "string" } },
+    root_cause: { type: "string" },
+    impact: { type: "string" },
+    mitigation_steps: { type: "array", items: { type: "string" } },
+    status: { type: "string", enum: ["investigating", "identified", "mitigated", "resolved"] },
+  },
+  required: ["severity", "title", "affected_systems", "root_cause", "mitigation_steps"],
+}, null, 2);
+
+const INVESTMENT_MEMO_SCHEMA = JSON.stringify({
+  type: "object",
+  properties: {
+    company_overview: { type: "string" },
+    financials: {
+      type: "object",
+      properties: {
+        revenue: { type: "string" },
+        growth_rate: { type: "string" },
+        margins: { type: "string" },
+        key_metrics: { type: "array", items: { type: "string" } },
+      },
+    },
+    risks: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          category: { type: "string" },
+          description: { type: "string" },
+          severity: { type: "string" },
+        },
+      },
+    },
+    team_assessment: { type: "string" },
+    recommendation: { type: "string", enum: ["strong_buy", "buy", "hold", "pass"] },
+    confidence_level: { type: "string", enum: ["high", "medium", "low"] },
+    caveats: { type: "array", items: { type: "string" } },
+  },
+  required: ["company_overview", "financials", "risks", "recommendation", "confidence_level"],
+}, null, 2);
+
 export const SCENARIO_ANSWERS: Record<string, Answer> = {
-  // === Bloated Swarm ===
-  // Consolidate 7 agents -> Router + 2 Executors (simple/complex)
+  // === BLOATED SWARM ===
   "bloated-swarm": {
     nodes: [
       { id: "input-1", type: "input", config: { label: "Customer Query" }, position: { x: 50, y: 250 }, locked: true },
@@ -16,7 +61,13 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
         config: {
           label: "Query Classifier",
           model: "gemini-flash",
-          routingPrompt: "Classify the incoming customer support query into one of two categories:\n- 'complex': refunds, complaints, billing disputes, or anything requiring empathy and nuanced judgment\n- 'simple': shipping status, password resets, product info, general FAQ\n\nRespond with exactly one word: 'complex' or 'simple'.",
+          routingPrompt: [
+            "Classify the incoming customer support query into one of two categories:",
+            "- 'complex': refunds, complaints, billing disputes, or anything requiring empathy and nuanced judgment",
+            "- 'simple': shipping status, password resets, product info, general FAQ",
+            "",
+            "Respond with exactly one word: 'complex' or 'simple'.",
+          ].join("\n"),
           routes: ["Complex", "Simple"],
         },
         position: { x: 280, y: 250 },
@@ -35,7 +86,7 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
         config: {
           label: "Simple Handler",
           model: "gpt-4o-mini",
-          systemPrompt: "You are a friendly customer support agent handling routine queries: shipping status lookups, password reset instructions, product information, and general FAQ. Be concise and helpful. Provide step-by-step instructions when relevant. For shipping, ask for the order number if not provided.",
+          systemPrompt: "You are a friendly customer support agent handling routine queries: shipping status lookups, password reset instructions, product information, and general FAQ. Be concise and helpful. Provide step-by-step instructions when relevant.",
         },
         position: { x: 540, y: 360 },
       },
@@ -61,8 +112,7 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
     ],
   },
 
-  // === Gold Plater ===
-  // Right-size models: o1-preview -> appropriate tier per task
+  // === GOLD PLATER ===
   "gold-plater": {
     nodes: [
       { id: "input-1", type: "input", config: { label: "Task Input" }, position: { x: 50, y: 250 }, locked: true },
@@ -71,7 +121,7 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
         config: {
           label: "Classifier",
           model: "gpt-4o-mini",
-          systemPrompt: "Classify the incoming task into one of these categories: 'formatting', 'analysis', or 'creative_writing'. Respond with just the category name. Formatting = restructure/reformat text. Analysis = complex reasoning, data interpretation, comparisons. Creative writing = stories, marketing copy, original content.",
+          systemPrompt: "Classify the incoming task into one of these categories: 'formatting', 'analysis', or 'creative_writing'. Respond with just the category name.",
         },
         position: { x: 260, y: 250 },
       },
@@ -80,7 +130,7 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
         config: {
           label: "Formatter",
           model: "gpt-4o-mini",
-          systemPrompt: "You are a text formatting specialist. Take the input and restructure it according to the formatting instructions. Apply consistent styling, fix spacing, organize into sections if needed. Output only the formatted result.",
+          systemPrompt: "You are a text formatting specialist. Restructure the input according to formatting instructions. Apply consistent styling, fix spacing, organize into sections if needed. Output only the formatted result.",
         },
         position: { x: 480, y: 130 },
       },
@@ -89,7 +139,7 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
         config: {
           label: "Analyzer",
           model: "gpt-4o",
-          systemPrompt: "You are an expert analyst. Carefully examine the input data or text. Identify patterns, draw conclusions, compare alternatives, and provide well-reasoned analysis. Structure your response with: Key Findings, Analysis, and Recommendations.",
+          systemPrompt: "You are an expert analyst. Examine the input data or text. Identify patterns, draw conclusions, compare alternatives, and provide well-reasoned analysis. Structure: Key Findings, Analysis, Recommendations.",
         },
         position: { x: 480, y: 370 },
       },
@@ -98,7 +148,7 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
         config: {
           label: "Quality Check",
           model: "claude-haiku",
-          evaluationPrompt: "Review the output for accuracy, completeness, and appropriate formatting. Does the response fully address the original task?",
+          evaluationPrompt: "Review the output for accuracy, completeness, and appropriate formatting.",
           passFailCriteria: "PASS if: output is accurate, well-structured, and directly addresses the task. FAIL if: contains errors, is incomplete, or misunderstands the task requirements.",
         },
         position: { x: 700, y: 250 },
@@ -115,125 +165,7 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
     ],
   },
 
-  // === Triage Nurse ===
-  // Router -> 3 urgency branches -> Safety Evaluator
-  "triage-nurse": {
-    nodes: [
-      { id: "input-1", type: "input", config: { label: "Patient Symptoms" }, position: { x: 50, y: 280 }, locked: true },
-      {
-        id: "router-1", type: "router",
-        config: {
-          label: "Urgency Classifier",
-          model: "gpt-4o-mini",
-          routingPrompt: "You are a medical triage classifier. Based on the patient's symptom description, classify urgency:\n- 'Emergency': chest pain, difficulty breathing, severe bleeding, stroke symptoms, loss of consciousness\n- 'Urgent': high fever, moderate pain, infections, sprains, persistent symptoms\n- 'Routine': mild symptoms, follow-ups, general health questions, preventive care\n\nRespond with exactly one word.",
-          routes: ["Emergency", "Urgent", "Routine"],
-        },
-        position: { x: 280, y: 280 },
-      },
-      {
-        id: "exec-emergency", type: "executor",
-        config: {
-          label: "Emergency Handler",
-          model: "gpt-4o",
-          systemPrompt: "You are an emergency medical intake specialist. The patient has emergency-level symptoms. Provide:\n1. Immediate safety instructions (what to do RIGHT NOW)\n2. Whether to call emergency services (911)\n3. Critical information to tell the paramedics\n\nBe direct, clear, and prioritize life-saving steps. Include standard medical disclaimer.",
-        },
-        position: { x: 530, y: 100 },
-      },
-      {
-        id: "exec-urgent", type: "executor",
-        config: {
-          label: "Urgent Care Handler",
-          model: "gemini-pro",
-          systemPrompt: "You are an urgent care medical assistant. Provide:\n1. Assessment of likely condition based on symptoms\n2. Recommended self-care steps\n3. When to seek in-person urgent care vs. schedule a doctor visit\n4. Warning signs that would escalate this to an emergency\n\nBe thorough but not alarmist. Include standard medical disclaimer.",
-        },
-        position: { x: 530, y: 280 },
-      },
-      {
-        id: "exec-routine", type: "executor",
-        config: {
-          label: "Routine Care Handler",
-          model: "gpt-4o-mini",
-          systemPrompt: "You are a general health assistant handling routine medical questions. Provide:\n1. General guidance for the described symptoms\n2. Home remedies or OTC recommendations if applicable\n3. When to schedule a regular doctor appointment\n\nBe friendly and informative. Include standard medical disclaimer.",
-        },
-        position: { x: 530, y: 460 },
-      },
-      {
-        id: "eval-safety", type: "evaluator",
-        config: {
-          label: "Medical Safety Check",
-          model: "gpt-4o-mini",
-          evaluationPrompt: "Review this medical response for safety. Check: Does it include a medical disclaimer? Does it avoid diagnosing specific conditions? Does it recommend professional medical attention when appropriate? Could any advice be harmful?",
-          passFailCriteria: "PASS if: includes disclaimer, does not diagnose, recommends seeing a doctor when appropriate, advice is safe. FAIL if: makes a specific diagnosis, recommends prescription medications, could cause harm, missing disclaimer.",
-        },
-        position: { x: 780, y: 280 },
-      },
-      { id: "output-1", type: "output", config: { label: "Medical Response" }, position: { x: 1020, y: 280 }, locked: true },
-    ],
-    edges: [
-      { id: "e1", source: "input-1", target: "router-1" },
-      { id: "e2", source: "router-1", target: "exec-emergency", sourceHandle: "route-0" },
-      { id: "e3", source: "router-1", target: "exec-urgent", sourceHandle: "route-1" },
-      { id: "e4", source: "router-1", target: "exec-routine", sourceHandle: "route-2" },
-      { id: "e5", source: "exec-emergency", target: "eval-safety" },
-      { id: "e6", source: "exec-urgent", target: "eval-safety" },
-      { id: "e7", source: "exec-routine", target: "eval-safety" },
-      { id: "e8", source: "eval-safety", target: "output-1", sourceHandle: "pass" },
-    ],
-  },
-
-  // === Trading Floor ===
-  // Parallel data gathering -> Context Gate -> Synthesis -> Evaluator
-  "trading-floor": {
-    nodes: [
-      { id: "input-1", type: "input", config: { label: "Ticker & Request" }, position: { x: 50, y: 280 }, locked: true },
-      {
-        id: "router-1", type: "router",
-        config: {
-          label: "Data Splitter",
-          model: "gemini-flash",
-          routingPrompt: "Split this financial analysis request into three parallel data-gathering tasks. Always route to all three branches simultaneously: 'Web' for live market data, 'Files' for historical records, and 'RAG' for company fundamentals.",
-          routes: ["Web", "Files", "RAG"],
-        },
-        position: { x: 250, y: 280 },
-      },
-      { id: "web-1", type: "web_search", config: { label: "Market Data Search" }, position: { x: 480, y: 100 } },
-      { id: "file-1", type: "file_rw", config: { label: "Historical Records" }, position: { x: 480, y: 280 } },
-      { id: "rag-1", type: "tool_rag", config: { label: "Company Fundamentals", kValue: 5 }, position: { x: 480, y: 460 } },
-      {
-        id: "gate-1", type: "context_gate",
-        config: {
-          label: "Data Filter",
-          contextGateMode: "structured_sendoff",
-          handoffBrief: "Extract and pass forward: key financial metrics, recent price action, relevant news headlines, and fundamental ratios. Discard raw HTML, duplicate data, and irrelevant search results.",
-        },
-        position: { x: 700, y: 280 },
-      },
-      {
-        id: "exec-synth", type: "executor",
-        config: {
-          label: "Synthesis & Recommendation",
-          model: "gpt-4-turbo",
-          systemPrompt: "You are a senior financial analyst. Synthesize the provided data from multiple sources into a trading recommendation. Structure your response:\n\n1. SUMMARY: 2-sentence overview\n2. BULL CASE: key positive factors\n3. BEAR CASE: key risk factors\n4. RECOMMENDATION: Buy/Hold/Sell with confidence level (Low/Medium/High)\n5. KEY METRICS: price targets, P/E ratio, growth rate\n\nBe data-driven. Cite specific numbers from the provided data.",
-        },
-        position: { x: 920, y: 280 },
-      },
-      { id: "output-1", type: "output", config: { label: "Trading Recommendation" }, position: { x: 1160, y: 280 }, locked: true },
-    ],
-    edges: [
-      { id: "e1", source: "input-1", target: "router-1" },
-      { id: "e2", source: "router-1", target: "web-1", sourceHandle: "route-0" },
-      { id: "e3", source: "router-1", target: "file-1", sourceHandle: "route-1" },
-      { id: "e4", source: "router-1", target: "rag-1", sourceHandle: "route-2" },
-      { id: "e5", source: "web-1", target: "gate-1" },
-      { id: "e6", source: "file-1", target: "gate-1" },
-      { id: "e7", source: "rag-1", target: "gate-1" },
-      { id: "e8", source: "gate-1", target: "exec-synth" },
-      { id: "e9", source: "exec-synth", target: "output-1" },
-    ],
-  },
-
-  // === Content Machine ===
-  // Router -> Generator -> Evaluator (loop) with Context Gate
+  // === CONTENT MACHINE ===
   "content-machine": {
     nodes: [
       { id: "input-1", type: "input", config: { label: "Content Brief" }, position: { x: 50, y: 280 }, locked: true },
@@ -242,7 +174,7 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
         config: {
           label: "Format Router",
           model: "gpt-4o-mini",
-          routingPrompt: "Classify the content request format:\n- 'Blog': blog posts, articles, long-form content\n- 'Social': tweets, social media posts, short captions\n- 'Email': email campaigns, newsletters, drip sequences\n\nRespond with one word.",
+          routingPrompt: "Classify the content request format: 'Blog' for articles/long-form, 'Social' for social media, 'Email' for campaigns. Respond with one word.",
           routes: ["Blog", "Social", "Email"],
         },
         position: { x: 250, y: 280 },
@@ -252,7 +184,7 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
         config: {
           label: "Blog Writer",
           model: "gemini-pro",
-          systemPrompt: "You are an expert content marketer writing blog posts. Follow the brief's tone, audience, and topic requirements. Structure with: compelling headline, hook introduction, organized body with subheadings, actionable conclusion with CTA. Target 800-1200 words. Use the brand voice specified in the brief.",
+          systemPrompt: "You are an expert content marketer writing blog posts. Follow the brief's tone, audience, and topic requirements. Structure with: compelling headline, hook introduction, organized body with subheadings, actionable conclusion with CTA. Target 800-1200 words.",
         },
         position: { x: 480, y: 120 },
       },
@@ -261,7 +193,7 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
         config: {
           label: "Social Writer",
           model: "gpt-4o-mini",
-          systemPrompt: "You are a social media content specialist. Create engaging, concise posts tailored to the platform. Include relevant hashtags, keep within character limits, use hooks and CTAs. Match the brand voice from the brief. Provide 3 variations.",
+          systemPrompt: "You are a social media content specialist. Create engaging posts tailored to the platform. Include relevant hashtags, keep within character limits, use hooks and CTAs. Provide 3 variations.",
         },
         position: { x: 480, y: 280 },
       },
@@ -270,7 +202,7 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
         config: {
           label: "Email Writer",
           model: "gemini-pro",
-          systemPrompt: "You are an email marketing expert. Write compelling email copy with: attention-grabbing subject line (A/B options), personalized greeting, value-driven body, clear CTA button text, and P.S. line. Follow the brief's audience and goals. Optimize for open rates and click-through.",
+          systemPrompt: "You are an email marketing expert. Write compelling email copy with: attention-grabbing subject line (A/B options), personalized greeting, value-driven body, clear CTA button text, and P.S. line.",
         },
         position: { x: 480, y: 440 },
       },
@@ -280,7 +212,7 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
           label: "Brand Guidelines Check",
           model: "gpt-4o-mini",
           evaluationPrompt: "Review the content against the original brief. Check brand voice consistency, target audience appropriateness, CTA presence, and overall quality.",
-          passFailCriteria: "PASS if: matches brand tone, addresses target audience, includes CTA, is error-free, meets format requirements. FAIL if: wrong tone, misses audience, no CTA, grammatical errors, or doesn't match the requested format.",
+          passFailCriteria: "PASS if: matches brand tone, addresses target audience, includes CTA, is error-free. FAIL if: wrong tone, misses audience, no CTA, or grammatical errors.",
         },
         position: { x: 720, y: 280 },
       },
@@ -309,8 +241,7 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
     ],
   },
 
-  // === Safety Net ===
-  // File R/W -> Fallback Router -> Success/Failure paths
+  // === SAFETY NET ===
   "safety-net": {
     nodes: [
       { id: "input-1", type: "input", config: { label: "Doc Request" }, position: { x: 50, y: 280 }, locked: true },
@@ -319,7 +250,7 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
         config: {
           label: "Request Parser",
           model: "gpt-4o-mini",
-          systemPrompt: "Parse the document processing request. Extract the file reference(s), the type of processing needed (summarization, extraction, analysis), and any specific requirements. Output a structured JSON with fields: files, processing_type, requirements.",
+          systemPrompt: "Parse the document processing request. Extract the file reference(s), processing type (summarization, extraction, analysis), and specific requirements. Output structured JSON.",
         },
         position: { x: 250, y: 280 },
       },
@@ -330,7 +261,7 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
         config: {
           label: "Document Processor",
           model: "gpt-4o",
-          systemPrompt: "You are a document processing specialist. Analyze the provided document content and perform the requested processing (summarization, extraction, or analysis). Provide a well-structured output with:\n1. Document Overview\n2. Key Findings\n3. Detailed Results\n4. Metadata (word count, key entities, dates found)",
+          systemPrompt: "You are a document processing specialist. Analyze the provided document content and perform the requested processing. Provide: Document Overview, Key Findings, Detailed Results, and Metadata.",
         },
         position: { x: 860, y: 160 },
       },
@@ -339,7 +270,7 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
         config: {
           label: "Graceful Fallback",
           model: "gpt-4o-mini",
-          systemPrompt: "The document file could not be read (corrupted or unavailable). Provide a graceful fallback response:\n1. Acknowledge the file read failure\n2. Explain what processing was requested\n3. Suggest alternative actions (retry later, check file path, provide file manually)\n4. If any partial data was recovered, summarize what's available.",
+          systemPrompt: "The document file could not be read. Provide a graceful fallback: acknowledge the failure, explain what was requested, suggest alternatives (retry, check path, provide manually), and summarize any partial data recovered.",
         },
         position: { x: 860, y: 400 },
       },
@@ -356,61 +287,183 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
     ],
   },
 
-  // === Full Stack Agent ===
-  // Parallel web+RAG -> Context Gate -> Writer -> Evaluator
-  "full-stack-agent": {
+  // === OPS CENTER — P1 Dispatch + P2 Context + P3 Schema + P4 Error ===
+  // Architecture: Fan-out → merge → route → fan-out (WIDE)
+  "ops-center": {
     nodes: [
-      { id: "input-1", type: "input", config: { label: "Research Question" }, position: { x: 50, y: 280 }, locked: true },
+      { id: "input-1", type: "input", config: { label: "Incident Alert" }, position: { x: 50, y: 300 }, locked: true },
+      { id: "web-status", type: "web_search", config: { label: "Status Pages" }, position: { x: 280, y: 120 } },
+      { id: "file-logs", type: "file_rw", config: { label: "System Logs" }, position: { x: 280, y: 300 } },
+      { id: "rag-runbooks", type: "tool_rag", config: { label: "Runbooks", kValue: 5 }, position: { x: 280, y: 480 } },
+      { id: "fallback-logs", type: "fallback_router", config: { label: "Log Status Check" }, position: { x: 480, y: 300 } },
+      {
+        id: "exec-log-fallback", type: "executor",
+        config: {
+          label: "Log Fallback",
+          model: "gpt-4o-mini",
+          systemPrompt: "System log retrieval failed or returned corrupted data. Acknowledge the gap: state which logs were unavailable, note what diagnostic info IS available from other sources, and recommend manual log retrieval steps for the on-call engineer. Do NOT guess at log contents.",
+        },
+        position: { x: 480, y: 480 },
+      },
+      {
+        id: "gate-filter", type: "context_gate",
+        config: {
+          label: "Diagnostic Filter",
+          contextGateMode: "structured_sendoff",
+          handoffBrief: "Extract ONLY: service health status (up/degraded/down), error patterns from logs (if available), relevant runbook procedures, and affected system names. Discard: raw HTML from status pages, full stack traces, duplicate log entries, and unrelated runbook sections.",
+        },
+        position: { x: 680, y: 300 },
+      },
+      {
+        id: "router-severity", type: "router",
+        config: {
+          label: "Severity Classifier",
+          model: "gpt-4o-mini",
+          routingPrompt: [
+            "Based on the filtered diagnostic data, classify severity:",
+            "- 'Critical': production down, data loss, security breach, multiple systems affected, customer-facing impact",
+            "- 'Routine': single system degraded, non-production, known issue with runbook, or false positive",
+            "",
+            "Consider: customer impact, data risk, multi-system scope. Respond with one word.",
+          ].join("\n"),
+          routes: ["Critical", "Routine"],
+        },
+        position: { x: 880, y: 300 },
+      },
+      {
+        id: "exec-critical", type: "executor",
+        config: {
+          label: "Critical Response",
+          model: "gpt-4o",
+          systemPrompt: "You are a senior incident commander writing a P1/P2 incident report. Identify the root cause (or hypothesis if incomplete data), list affected systems, provide mitigation steps in priority order, assess blast radius and customer impact. If log data was unavailable, note this gap. Be decisive and action-oriented.",
+          outputSchema: INCIDENT_REPORT_SCHEMA,
+        },
+        position: { x: 1120, y: 180 },
+      },
+      {
+        id: "exec-routine", type: "executor",
+        config: {
+          label: "Routine Response",
+          model: "gpt-4o-mini",
+          systemPrompt: "You are an operations assistant writing a routine incident report. Summarize the issue and likely cause, list affected systems, provide recommended actions or runbook references, and note if this matches a known pattern. Be clear and concise.",
+          outputSchema: INCIDENT_REPORT_SCHEMA,
+        },
+        position: { x: 1120, y: 420 },
+      },
+      {
+        id: "eval-completeness", type: "evaluator",
+        config: {
+          label: "Completeness Check",
+          model: "gpt-4o-mini",
+          evaluationPrompt: "Review incident report for CONTENT quality (format enforced by schema). Does it identify a root cause? Are mitigation steps actionable? If data was missing, is the gap acknowledged?",
+          passFailCriteria: "PASS if: root cause identified or gap noted, mitigation steps are specific, severity matches evidence. FAIL if: vague 'investigate further', generic mitigation, or severity mismatch.",
+        },
+        position: { x: 1120, y: 300 },
+      },
+      { id: "output-1", type: "output", config: { label: "Incident Report" }, position: { x: 1380, y: 300 }, locked: true },
+    ],
+    edges: [
+      { id: "e1", source: "input-1", target: "web-status" },
+      { id: "e2", source: "input-1", target: "file-logs" },
+      { id: "e3", source: "input-1", target: "rag-runbooks" },
+      { id: "e4", source: "file-logs", target: "fallback-logs" },
+      { id: "e5", source: "fallback-logs", target: "gate-filter", sourceHandle: "success" },
+      { id: "e6", source: "fallback-logs", target: "exec-log-fallback", sourceHandle: "failure" },
+      { id: "e7", source: "exec-log-fallback", target: "gate-filter" },
+      { id: "e8", source: "web-status", target: "gate-filter" },
+      { id: "e9", source: "rag-runbooks", target: "gate-filter" },
+      { id: "e10", source: "gate-filter", target: "router-severity" },
+      { id: "e11", source: "router-severity", target: "exec-critical", sourceHandle: "route-0" },
+      { id: "e12", source: "router-severity", target: "exec-routine", sourceHandle: "route-1" },
+      { id: "e13", source: "exec-critical", target: "eval-completeness" },
+      { id: "e14", source: "exec-routine", target: "eval-completeness" },
+      { id: "e15", source: "eval-completeness", target: "output-1", sourceHandle: "pass" },
+    ],
+  },
+
+  // === DUE DILIGENCE ENGINE — P2 Multi-stage + P3 Schema + P4 Error + Eval Loop ===
+  // Architecture: Plan → gather → gate → draft → evaluate → revise loop (DEEP)
+  "due-diligence-engine": {
+    nodes: [
+      { id: "input-1", type: "input", config: { label: "Target Company" }, position: { x: 50, y: 320 }, locked: true },
       {
         id: "exec-planner", type: "executor",
         config: {
           label: "Research Planner",
           model: "gpt-4o-mini",
-          systemPrompt: "You are a research planning assistant. Break down the research question into:\n1. Key search queries (2-3 specific queries for web search)\n2. Knowledge base topics to look up\n3. Scope boundaries (what to include/exclude)\n4. Expected structure of the final report\n\nOutput a structured plan.",
+          systemPrompt: "You are a due diligence research planner. Decompose the acquisition analysis into: market research queries (financial data, news, SEC filings), legal document requests (contracts, compliance, litigation), and company knowledge lookups (prior memos, industry reports, competitors). Output a structured research plan.",
         },
-        position: { x: 250, y: 280 },
+        position: { x: 250, y: 320 },
       },
-      { id: "web-1", type: "web_search", config: { label: "Web Research" }, position: { x: 480, y: 150 } },
-      { id: "rag-1", type: "tool_rag", config: { label: "Knowledge Base", kValue: 8 }, position: { x: 480, y: 410 } },
+      { id: "web-market", type: "web_search", config: { label: "Market Research" }, position: { x: 480, y: 140 } },
+      { id: "file-legal", type: "file_rw", config: { label: "Legal Documents" }, position: { x: 480, y: 320 } },
+      { id: "rag-company", type: "tool_rag", config: { label: "Company Data", kValue: 8 }, position: { x: 480, y: 500 } },
+      { id: "fallback-legal", type: "fallback_router", config: { label: "Legal Doc Check" }, position: { x: 680, y: 320 } },
       {
-        id: "gate-1", type: "context_gate",
+        id: "exec-gap-noter", type: "executor",
+        config: {
+          label: "Gap Noter",
+          model: "gpt-4o-mini",
+          systemPrompt: "Legal document retrieval failed. Flag what is missing: which documents were unavailable, what risks this gap creates for the due diligence, and recommended workarounds (manual request, public records, legal team follow-up). The memo writer will add appropriate caveats. Do NOT fabricate legal data.",
+        },
+        position: { x: 680, y: 500 },
+      },
+      {
+        id: "gate-research", type: "context_gate",
         config: {
           label: "Research Filter",
           contextGateMode: "structured_sendoff",
-          handoffBrief: "Extract and organize: key facts with source citations, relevant statistics, expert quotes, and counterarguments. Discard duplicate information, irrelevant search results, and boilerplate text. Group by theme/subtopic.",
+          handoffBrief: "Extract ONLY: key financial metrics (revenue, growth, margins, multiples), identified legal risks or gaps, competitive position summary, team highlights, and red flags. Discard: full SEC filing text, legal boilerplate, raw HTML, duplicates. Preserve gap noter warnings if legal docs were unavailable.",
         },
-        position: { x: 700, y: 280 },
+        position: { x: 900, y: 320 },
       },
       {
-        id: "exec-writer", type: "executor",
+        id: "exec-memo", type: "executor",
         config: {
-          label: "Report Writer",
-          model: "gpt-4-turbo",
-          systemPrompt: "You are a senior research analyst writing a structured report. Using the filtered research data, produce a comprehensive report with:\n\n1. EXECUTIVE SUMMARY (2-3 sentences)\n2. BACKGROUND & CONTEXT\n3. KEY FINDINGS (organized by theme)\n4. ANALYSIS & IMPLICATIONS\n5. LIMITATIONS & GAPS\n6. CONCLUSION & RECOMMENDATIONS\n7. SOURCES (cite all data sources)\n\nBe analytical, not just descriptive. Draw connections between findings.",
+          label: "Memo Writer",
+          model: "gpt-4o",
+          systemPrompt: "You are a senior M&A analyst writing an investment memo following the output schema exactly. Every claim must cite specific data. If legal documents were unavailable, add caveats. Recommendation must be justified by financials and risk profile. Confidence level reflects data completeness. Be analytical, not promotional.",
+          outputSchema: INVESTMENT_MEMO_SCHEMA,
         },
-        position: { x: 920, y: 280 },
+        position: { x: 1100, y: 320 },
       },
       {
         id: "eval-quality", type: "evaluator",
         config: {
-          label: "Report Quality Review",
-          model: "claude-sonnet",
-          evaluationPrompt: "Review this research report for completeness, accuracy, proper citations, logical structure, and whether it answers the original research question.",
-          passFailCriteria: "PASS if: answers the research question, has proper structure with all sections, cites sources, analysis is logical and well-supported. FAIL if: doesn't answer the question, missing sections, no citations, or analysis has logical flaws.",
+          label: "Memo Quality Check",
+          model: "gemini-pro",
+          evaluationPrompt: "Review memo for analytical rigor: are claims data-backed, risks categorized, caveats for missing data present, recommendation justified, confidence appropriate?",
+          passFailCriteria: "PASS if: data-backed claims, specific risks, caveats present, justified recommendation, appropriate confidence. FAIL if: generic claims, missing risks, no data-gap caveats, or contradictory recommendation.",
         },
-        position: { x: 1140, y: 280 },
+        position: { x: 1300, y: 220 },
       },
-      { id: "output-1", type: "output", config: { label: "Research Report" }, position: { x: 1380, y: 280 }, locked: true },
+      {
+        id: "gate-revision", type: "context_gate",
+        config: {
+          label: "Revision Gate",
+          contextGateMode: "structured_sendoff",
+          handoffBrief: "Strip the previous memo draft entirely. Pass ONLY: evaluator feedback (what failed and why) and the original filtered research brief. The memo writer starts fresh with guidance, not patching the old draft. This prevents context pollution across iterations.",
+        },
+        position: { x: 1300, y: 440 },
+      },
+      { id: "output-1", type: "output", config: { label: "Investment Memo" }, position: { x: 1520, y: 320 }, locked: true },
     ],
     edges: [
       { id: "e1", source: "input-1", target: "exec-planner" },
-      { id: "e2", source: "exec-planner", target: "web-1" },
-      { id: "e3", source: "exec-planner", target: "rag-1" },
-      { id: "e4", source: "web-1", target: "gate-1" },
-      { id: "e5", source: "rag-1", target: "gate-1" },
-      { id: "e6", source: "gate-1", target: "exec-writer" },
-      { id: "e7", source: "exec-writer", target: "eval-quality" },
-      { id: "e8", source: "eval-quality", target: "output-1", sourceHandle: "pass" },
+      { id: "e2", source: "exec-planner", target: "web-market" },
+      { id: "e3", source: "exec-planner", target: "file-legal" },
+      { id: "e4", source: "exec-planner", target: "rag-company" },
+      { id: "e5", source: "file-legal", target: "fallback-legal" },
+      { id: "e6", source: "fallback-legal", target: "gate-research", sourceHandle: "success" },
+      { id: "e7", source: "fallback-legal", target: "exec-gap-noter", sourceHandle: "failure" },
+      { id: "e8", source: "exec-gap-noter", target: "gate-research" },
+      { id: "e9", source: "web-market", target: "gate-research" },
+      { id: "e10", source: "rag-company", target: "gate-research" },
+      { id: "e11", source: "gate-research", target: "exec-memo" },
+      { id: "e12", source: "exec-memo", target: "eval-quality" },
+      { id: "e13", source: "eval-quality", target: "output-1", sourceHandle: "pass" },
+      { id: "e14", source: "eval-quality", target: "gate-revision", sourceHandle: "fail" },
+      { id: "e15", source: "gate-revision", target: "exec-memo" },
     ],
   },
 };

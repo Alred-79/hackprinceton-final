@@ -68,12 +68,15 @@ export interface FailureSequence {
   failureMessage: string;
 }
 
+export type ScenarioDifficulty = "easy" | "medium" | "hard";
+
 export interface Scenario {
   id: string;
   title: string;
   brief: string;
   description: string;
   mode: ScenarioMode;
+  difficulty?: ScenarioDifficulty;
   expectedInputs: string;
   expectedOutputs: string;
   availableNodeTypes: SimNodeType[];

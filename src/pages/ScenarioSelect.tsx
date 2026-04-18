@@ -1,9 +1,8 @@
 import { ALL_SCENARIOS } from "@/data/scenarios";
 import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { ArrowRight, Wrench, PencilRuler, Trophy } from "lucide-react";
-import type { ProgressStatus } from "@/types/simulator";
+import { ArrowRight, Wrench, PencilRuler, Trophy, Zap } from "lucide-react";
+import type { ProgressStatus, ScenarioDifficulty } from "@/types/simulator";
 import { cn } from "@/lib/utils";
 
 function getProgress(scenarioId: string): { status: ProgressStatus; attempts: number } {
@@ -28,8 +27,18 @@ const statusBadges: Record<ProgressStatus, { label: string; variant: "outline" |
   optimal: { label: "Optimal", variant: "default" },
 };
 
+const difficultyLabels: Record<ScenarioDifficulty, { label: string; className: string }> = {
+  easy: { label: "Easy", className: "text-emerald-400 border-emerald-400/30 bg-emerald-400/10" },
+  medium: { label: "Medium", className: "text-amber-400 border-amber-400/30 bg-amber-400/10" },
+  hard: { label: "Hard", className: "text-red-400 border-red-400/30 bg-red-400/10" },
+};
+
 export default function ScenarioSelect() {
   const navigate = useNavigate();
+
+  const fixerScenarios = ALL_SCENARIOS.filter((s) => s.mode === "fixer");
+  const architectScenarios = ALL_SCENARIOS.filter((s) => s.mode === "architect" && s.difficulty !== "hard");
+  const compoundScenarios = ALL_SCENARIOS.filter((s) => s.difficulty === "hard");
 
   return (
     <div className="min-h-screen bg-background">
@@ -55,7 +64,7 @@ export default function ScenarioSelect() {
               <span className="text-xs text-muted-foreground">Fix broken architectures</span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {ALL_SCENARIOS.filter((s) => s.mode === "fixer").map((scenario) => {
+              {fixerScenarios.map((scenario) => {
                 const progress = getProgress(scenario.id);
                 return (
                   <ScenarioCard
@@ -63,6 +72,7 @@ export default function ScenarioSelect() {
                     title={scenario.title}
                     brief={scenario.brief}
                     mode="fixer"
+                    difficulty={scenario.difficulty}
                     progress={progress.status}
                     onClick={() => navigate(`/simulator/${scenario.id}`)}
                   />
@@ -79,7 +89,7 @@ export default function ScenarioSelect() {
               <span className="text-xs text-muted-foreground">Design from scratch</span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {ALL_SCENARIOS.filter((s) => s.mode === "architect").map((scenario) => {
+              {architectScenarios.map((scenario) => {
                 const progress = getProgress(scenario.id);
                 return (
                   <ScenarioCard
@@ -87,6 +97,7 @@ export default function ScenarioSelect() {
                     title={scenario.title}
                     brief={scenario.brief}
                     mode="architect"
+                    difficulty={scenario.difficulty}
                     progress={progress.status}
                     onClick={() => navigate(`/simulator/${scenario.id}`)}
                   />
@@ -94,6 +105,33 @@ export default function ScenarioSelect() {
               })}
             </div>
           </div>
+
+          {/* Compound principle scenarios */}
+          {compoundScenarios.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <Zap className="h-5 w-5 text-red-400" />
+                <h2 className="text-lg font-semibold text-foreground">Compound Scenarios</h2>
+                <span className="text-xs text-muted-foreground">Multiple principles, complex architectures</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {compoundScenarios.map((scenario) => {
+                  const progress = getProgress(scenario.id);
+                  return (
+                    <ScenarioCard
+                      key={scenario.id}
+                      title={scenario.title}
+                      brief={scenario.brief}
+                      mode="architect"
+                      difficulty={scenario.difficulty}
+                      progress={progress.status}
+                      onClick={() => navigate(`/simulator/${scenario.id}`)}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -101,15 +139,17 @@ export default function ScenarioSelect() {
 }
 
 function ScenarioCard({
-  title, brief, mode, progress, onClick,
+  title, brief, mode, difficulty, progress, onClick,
 }: {
   title: string;
   brief: string;
   mode: "fixer" | "architect";
+  difficulty?: ScenarioDifficulty;
   progress: ProgressStatus;
   onClick: () => void;
 }) {
   const badge = statusBadges[progress];
+  const diffInfo = difficulty ? difficultyLabels[difficulty] : null;
   return (
     <button
       onClick={onClick}
@@ -126,6 +166,11 @@ function ScenarioCard({
             <PencilRuler className="h-4 w-4 text-blue-400" />
           )}
           <h3 className="font-semibold text-foreground">{title}</h3>
+          {diffInfo && (
+            <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0", diffInfo.className)}>
+              {diffInfo.label}
+            </Badge>
+          )}
         </div>
         <div className="flex items-center gap-1.5">
           {progress === "optimal" && <Trophy className="h-3.5 w-3.5 text-amber-400" />}

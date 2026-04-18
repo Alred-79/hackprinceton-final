@@ -149,6 +149,22 @@ export function computeDeterministicResults(
     }
   });
 
+  // Output schema bonus (structural guarantees beat runtime checks)
+  const schemaNodes = nodes.filter((n) =>
+    (n.type === "executor" || n.type === "evaluator") && n.config.outputSchema?.trim()
+  );
+  let schemaBonus = 0;
+  schemaNodes.forEach((n, i) => {
+    try {
+      JSON.parse(n.config.outputSchema!);
+      const bonus = i === 0 ? 8 : 3;
+      bonuses.push({ label: `Schema: ${n.config.label}`, value: bonus });
+      schemaBonus += bonus;
+    } catch {
+      warnings.push(`${n.config.label}: outputSchema is not valid JSON`);
+    }
+  });
+
   // Chained executors without gate
   const chainLength = countChainedExecutorsWithoutGate(nodes, edges);
   if (chainLength >= 4) {
@@ -170,7 +186,7 @@ export function computeDeterministicResults(
   }
 
   // Add bonuses to reliability
-  reliability += evalBonus + gateBonus;
+  reliability += evalBonus + gateBonus + schemaBonus;
   reliability = Math.max(0, Math.min(100, reliability));
 
   // Model reliability contribution
