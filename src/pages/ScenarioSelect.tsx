@@ -37,7 +37,7 @@ export default function ScenarioSelect() {
         {/* Header */}
         <div className="text-center mb-10">
           <h1 className="text-3xl font-bold text-foreground mb-2">
-            LangGraph Architecture Simulator
+            Leetcode for Agentic AI
           </h1>
           <p className="text-muted-foreground max-w-xl mx-auto">
             Master agent architecture by fixing broken systems and designing optimal solutions.
