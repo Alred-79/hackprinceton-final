@@ -9,9 +9,9 @@ import { InspectorPanel } from "@/components/simulator/InspectorPanel";
 import { ResultsPanel } from "@/components/simulator/ResultsPanel";
 import { Editorial } from "@/components/simulator/Editorial";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ArrowLeft, BookOpen, Settings, BarChart3 } from "lucide-react";
+import { ArrowLeft, BookOpen, Settings, BarChart3, Blocks } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export default function Simulator() {
   const { scenarioId } = useParams<{ scenarioId: string }>();
@@ -46,14 +46,14 @@ export default function Simulator() {
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">
       {/* Top bar */}
-      <div className="flex items-center gap-3 border-b px-4 py-2 bg-card/50 shrink-0">
+      <div className="flex items-center gap-3 border-b border-border/50 px-4 py-2 bg-card/60 backdrop-blur-sm shrink-0">
         <Button variant="ghost" size="sm" onClick={() => navigate("/")} className="gap-1 text-xs">
           <ArrowLeft className="h-3.5 w-3.5" />
           Scenarios
         </Button>
-        <div className="h-4 w-px bg-border" />
+        <div className="h-4 w-px bg-border/50" />
         <h1 className="text-sm font-semibold text-foreground">{currentScenario.title}</h1>
-        <span className="text-xs text-muted-foreground">{currentScenario.brief}</span>
+        <span className="text-xs text-muted-foreground hidden md:inline">{currentScenario.brief}</span>
         <div className="flex-1" />
         {editorialUnlocked && (
           <Button
@@ -69,15 +69,24 @@ export default function Simulator() {
       </div>
 
       {/* HUD */}
-      <div className="px-4 py-2 shrink-0">
+      <div className="px-4 py-2 shrink-0 border-b border-border/30">
         <HUD />
       </div>
 
       {/* Main area */}
       <div className="flex-1 flex min-h-0">
         {/* Left sidebar - Node Palette */}
-        <div className="w-48 border-r bg-card/30 shrink-0">
-          <ScrollArea className="h-full p-3">
+        <div className="w-52 shrink-0 flex flex-col border-r border-border/40 bg-gradient-to-b from-card/50 to-card/20">
+          <div className="px-3 pt-3 pb-2 border-b border-border/30">
+            <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
+              <Blocks className="h-3.5 w-3.5 text-primary" />
+              Node Palette
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              Drag onto canvas or click
+            </p>
+          </div>
+          <ScrollArea className="flex-1 px-3 py-2">
             <NodePalette />
           </ScrollArea>
         </div>
@@ -88,35 +97,48 @@ export default function Simulator() {
         </div>
 
         {/* Right sidebar - Inspector / Results */}
-        <div className="w-72 border-l bg-card/30 shrink-0 flex flex-col">
-          <Tabs
-            value={activeRightTab}
-            onValueChange={(v) => setActiveRightTab(v as "inspector" | "results")}
-            className="flex flex-col h-full"
-          >
-            <TabsList className="grid grid-cols-2 mx-3 mt-3 shrink-0">
-              <TabsTrigger value="inspector" className="text-xs gap-1">
-                <Settings className="h-3 w-3" />
-                Inspector
-              </TabsTrigger>
-              <TabsTrigger value="results" className="text-xs gap-1">
-                <BarChart3 className="h-3 w-3" />
-                Results
-              </TabsTrigger>
-            </TabsList>
-            <div className="flex-1 min-h-0">
-              <TabsContent value="inspector" className="h-full m-0">
-                <ScrollArea className="h-full px-3 py-2">
-                  <InspectorPanel />
-                </ScrollArea>
-              </TabsContent>
-              <TabsContent value="results" className="h-full m-0">
-                <ScrollArea className="h-full px-3 py-2">
-                  <ResultsPanel />
-                </ScrollArea>
-              </TabsContent>
+        <div className="w-80 shrink-0 flex flex-col border-l border-border/40 bg-gradient-to-b from-card/50 to-card/20">
+          {/* Custom tab header */}
+          <div className="flex border-b border-border/30 shrink-0">
+            <button
+              onClick={() => setActiveRightTab("inspector")}
+              className={cn(
+                "flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors relative",
+                activeRightTab === "inspector"
+                  ? "text-foreground"
+                  : "text-muted-foreground hover:text-foreground/70"
+              )}
+            >
+              <Settings className="h-3.5 w-3.5" />
+              Inspector
+              {activeRightTab === "inspector" && (
+                <div className="absolute bottom-0 inset-x-4 h-0.5 bg-primary rounded-full" />
+              )}
+            </button>
+            <div className="w-px bg-border/30 my-2" />
+            <button
+              onClick={() => setActiveRightTab("results")}
+              className={cn(
+                "flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors relative",
+                activeRightTab === "results"
+                  ? "text-foreground"
+                  : "text-muted-foreground hover:text-foreground/70"
+              )}
+            >
+              <BarChart3 className="h-3.5 w-3.5" />
+              Results
+              {activeRightTab === "results" && (
+                <div className="absolute bottom-0 inset-x-4 h-0.5 bg-primary rounded-full" />
+              )}
+            </button>
+          </div>
+
+          {/* Tab content */}
+          <ScrollArea className="flex-1">
+            <div className="px-3 py-3">
+              {activeRightTab === "inspector" ? <InspectorPanel /> : <ResultsPanel />}
             </div>
-          </Tabs>
+          </ScrollArea>
         </div>
       </div>
 

@@ -184,8 +184,7 @@ function SimulatorNodeComponent({ id, data, selected }: SimNodeProps) {
       style={{
         transform: `scale(${scale}) perspective(800px) rotateX(${tiltDeg}deg) translateZ(${baseZ * 2}px)`,
         boxShadow: combinedShadow,
-        minWidth: `${Math.round(140 * scale)}px`,
-        padding: `${Math.round(10 * scale)}px ${Math.round(14 * scale)}px`,
+        padding: `${Math.round(8 * scale)}px ${Math.round(12 * scale)}px`,
         transformOrigin: "center center",
         backdropFilter: "blur(8px)",
       }}
@@ -245,16 +244,16 @@ function SimulatorNodeComponent({ id, data, selected }: SimNodeProps) {
         />
       )}
 
-      {/* Node content */}
-      <div className="flex items-center gap-2">
+      {/* Node content — single line, no truncation */}
+      <div className="flex items-center gap-2 whitespace-nowrap">
         <div
           className={cn(
             "shrink-0 rounded-md flex items-center justify-center",
             isRunning && "animate-pulse"
           )}
           style={{
-            width: `${Math.round(24 * scale)}px`,
-            height: `${Math.round(24 * scale)}px`,
+            width: `${Math.round(22 * scale)}px`,
+            height: `${Math.round(22 * scale)}px`,
             background: isRunning
               ? `radial-gradient(circle, rgba(${categoryRgb}, 0.3), transparent)`
               : hasCost
@@ -265,41 +264,39 @@ function SimulatorNodeComponent({ id, data, selected }: SimNodeProps) {
           <Icon
             className={cn(iconColors[meta.color])}
             style={{
-              width: `${Math.round(14 * scale)}px`,
-              height: `${Math.round(14 * scale)}px`,
+              width: `${Math.round(13 * scale)}px`,
+              height: `${Math.round(13 * scale)}px`,
             }}
           />
         </div>
-        <div className="flex-1 min-w-0">
-          <div
-            className="font-semibold text-foreground truncate leading-tight"
-            style={{ fontSize: `${Math.round(12 * scale)}px` }}
-          >
-            {data.label}
-          </div>
-          {data.model && (
-            <div className="flex items-center gap-1" style={{ marginTop: "1px" }}>
+        <span
+          className="font-semibold text-foreground leading-tight"
+          style={{ fontSize: `${Math.round(11 * scale)}px` }}
+        >
+          {data.label}
+        </span>
+        {data.model && (
+          <>
+            <span className="text-muted-foreground/40">|</span>
+            <span
+              className="text-muted-foreground"
+              style={{ fontSize: `${Math.round(9 * scale)}px` }}
+            >
+              {data.model}
+            </span>
+            {hasCost && (
               <div
-                className="truncate text-muted-foreground"
-                style={{ fontSize: `${Math.round(9 * scale)}px` }}
-              >
-                {data.model}
-              </div>
-              {/* Tiny cost dot indicator */}
-              {hasCost && (
-                <div
-                  className="shrink-0 rounded-full"
-                  style={{
-                    width: "5px",
-                    height: "5px",
-                    backgroundColor: getCostGlowColor(costRatio),
-                    opacity: 0.8,
-                  }}
-                />
-              )}
-            </div>
-          )}
-        </div>
+                className="shrink-0 rounded-full"
+                style={{
+                  width: "5px",
+                  height: "5px",
+                  backgroundColor: getCostGlowColor(costRatio),
+                  opacity: 0.8,
+                }}
+              />
+            )}
+          </>
+        )}
         {data.locked && <Lock className="h-3 w-3 text-muted-foreground shrink-0" />}
         {data.isDisconnected && <AlertTriangle className="h-3 w-3 text-amber-400 shrink-0" />}
         {showContextWarning && <AlertTriangle className="h-3 w-3 text-orange-400 shrink-0" />}
