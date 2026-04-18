@@ -134,7 +134,7 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
         id: "exec-emergency", type: "executor",
         config: {
           label: "Emergency Handler",
-          model: "gpt-4-turbo",
+          model: "gpt-4o",
           systemPrompt: "You are an emergency medical intake specialist. The patient has emergency-level symptoms. Provide:\n1. Immediate safety instructions (what to do RIGHT NOW)\n2. Whether to call emergency services (911)\n3. Critical information to tell the paramedics\n\nBe direct, clear, and prioritize life-saving steps. Include standard medical disclaimer.",
         },
         position: { x: 530, y: 100 },
@@ -143,7 +143,7 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
         id: "exec-urgent", type: "executor",
         config: {
           label: "Urgent Care Handler",
-          model: "claude-sonnet",
+          model: "gemini-pro",
           systemPrompt: "You are an urgent care medical assistant. Provide:\n1. Assessment of likely condition based on symptoms\n2. Recommended self-care steps\n3. When to seek in-person urgent care vs. schedule a doctor visit\n4. Warning signs that would escalate this to an emergency\n\nBe thorough but not alarmist. Include standard medical disclaimer.",
         },
         position: { x: 530, y: 280 },
@@ -161,7 +161,7 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
         id: "eval-safety", type: "evaluator",
         config: {
           label: "Medical Safety Check",
-          model: "claude-sonnet",
+          model: "gpt-4o-mini",
           evaluationPrompt: "Review this medical response for safety. Check: Does it include a medical disclaimer? Does it avoid diagnosing specific conditions? Does it recommend professional medical attention when appropriate? Could any advice be harmful?",
           passFailCriteria: "PASS if: includes disclaimer, does not diagnose, recommends seeing a doctor when appropriate, advice is safe. FAIL if: makes a specific diagnosis, recommends prescription medications, could cause harm, missing disclaimer.",
         },
@@ -251,7 +251,7 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
         id: "exec-blog", type: "executor",
         config: {
           label: "Blog Writer",
-          model: "claude-sonnet",
+          model: "gemini-pro",
           systemPrompt: "You are an expert content marketer writing blog posts. Follow the brief's tone, audience, and topic requirements. Structure with: compelling headline, hook introduction, organized body with subheadings, actionable conclusion with CTA. Target 800-1200 words. Use the brand voice specified in the brief.",
         },
         position: { x: 480, y: 120 },
@@ -269,7 +269,7 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
         id: "exec-email", type: "executor",
         config: {
           label: "Email Writer",
-          model: "gpt-4o",
+          model: "gemini-pro",
           systemPrompt: "You are an email marketing expert. Write compelling email copy with: attention-grabbing subject line (A/B options), personalized greeting, value-driven body, clear CTA button text, and P.S. line. Follow the brief's audience and goals. Optimize for open rates and click-through.",
         },
         position: { x: 480, y: 440 },
