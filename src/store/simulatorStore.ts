@@ -8,6 +8,7 @@ import type {
   LLMGradeResponse,
   TraceStep,
 } from "@/types/simulator";
+import { SCENARIO_ANSWERS } from "@/data/answers";
 
 const MAX_HISTORY = 50;
 
@@ -51,6 +52,9 @@ interface SimulatorActions {
   
   // Reset
   resetBoard: () => void;
+  
+  // Load answer
+  loadAnswer: () => void;
 }
 
 export const useSimulatorStore = create<SimulatorState & SimulatorActions>((set, get) => ({
@@ -218,6 +222,26 @@ export const useSimulatorStore = create<SimulatorState & SimulatorActions>((set,
       activeTraceStep: null,
       history: [{ nodes: structuredClone(nodes), edges: structuredClone(edges) }],
       historyIndex: 0,
+    });
+  },
+
+  loadAnswer: () => {
+    const scenario = get().currentScenario;
+    if (!scenario) return;
+    const answer = SCENARIO_ANSWERS[scenario.id];
+    if (!answer) return;
+    const nodes = structuredClone(answer.nodes);
+    const edges = structuredClone(answer.edges);
+    get().pushHistory();
+    set({
+      nodes,
+      edges,
+      selectedNodeId: null,
+      deterministicResults: null,
+      llmResults: null,
+      isEvaluating: false,
+      isLLMLoading: false,
+      resultsStale: false,
     });
   },
 }));

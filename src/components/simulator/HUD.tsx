@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Undo2, Redo2, Play, RotateCcw, Info, Lightbulb,
-  DollarSign, Clock, ShieldCheck, ChevronDown,
+  DollarSign, Clock, ShieldCheck, ChevronDown, Eye,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMemo, useState } from "react";
@@ -17,12 +17,13 @@ export function HUD() {
     historyIndex, history, hintsRevealed, attempts,
     setDeterministicResults, setIsEvaluating, setIsLLMLoading,
     setLLMResults, setActiveRightTab, incrementAttempts,
-    undo, redo, revealNextHint, resetBoard,
+    undo, redo, revealNextHint, resetBoard, loadAnswer,
   } = useSimulatorStore();
 
   const [showDetails, setShowDetails] = useState(false);
   const [showHints, setShowHints] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showAnswerConfirm, setShowAnswerConfirm] = useState(false);
 
   const liveMetrics = useMemo(() => {
     if (!currentScenario) return null;
@@ -198,6 +199,16 @@ export function HUD() {
             <RotateCcw className="h-3.5 w-3.5" />
           </Button>
           <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setShowAnswerConfirm(true)}
+            disabled={isEvaluating}
+            className="h-7 w-7"
+            title="Show Answer"
+          >
+            <Eye className="h-3.5 w-3.5" />
+          </Button>
+          <Button
             onClick={handleRun}
             disabled={isEvaluating}
             size="sm"
@@ -255,6 +266,25 @@ export function HUD() {
             <div className="flex gap-2 justify-end">
               <Button variant="outline" size="sm" onClick={() => setShowResetConfirm(false)}>Cancel</Button>
               <Button variant="destructive" size="sm" onClick={handleReset}>Reset</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Answer confirmation */}
+      {showAnswerConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="bg-card border rounded-lg p-6 max-w-sm shadow-lg space-y-4">
+            <h3 className="text-sm font-semibold text-foreground">Show Optimal Answer?</h3>
+            <p className="text-xs text-muted-foreground">
+              This will replace your current architecture with the optimal solution, including properly configured nodes, models, and prompts.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" size="sm" onClick={() => setShowAnswerConfirm(false)}>Cancel</Button>
+              <Button size="sm" onClick={() => { loadAnswer(); setShowAnswerConfirm(false); }}>
+                <Eye className="h-3.5 w-3.5 mr-1" />
+                Show Answer
+              </Button>
             </div>
           </div>
         </div>
