@@ -1,187 +1,126 @@
-# Scenario Redesign v2: 2 Compound Scenarios + Engine Support
+# New Node Types + Scenario Enhancements
 
 ## Context
+The simulator currently has 10 node types (3 brain, 3 tool, 2 control, 2 IO). The tool category is thin — Web Search, File R/W, and Tool RAG are all passive data fetchers. Real agent architectures use active tools (code execution, API calls, database queries) and coordination patterns (human-in-the-loop, MCP servers). Adding these would make scenarios more realistic and teach new design principles.
 
-Current 7 scenarios each teach ~1 principle. We're replacing 3 redundant/shallow ones (Triage Nurse, Trading Floor, Full Stack Agent) with 2 compound scenarios that teach multiple principles together. Also adding grading engine support for `outputSchema` so P3 (structural guarantees) is mechanically rewarded.
+## New Node Types (4 additions)
 
-## The 4 Design Principles
+### 1. `code_exec` — Code Interpreter (Tool)
+- **What it does**: Executes generated code (Python, SQL, calculations)
+- **Why it matters**: Most real agent systems generate code — it's the highest-leverage tool but also the highest-risk. Teaches: sandboxing decisions, when to use code vs LLM reasoning
+- **Config**: None (passive tool, like web_search)
+- **Cost**: $0.15 (compute), **Latency**: 1.5s, **Reliability penalty**: -3% if not behind a fallback router (code can error)
+- **Icon**: `Terminal` (lucide)
 
-- **P1 Dispatch**: Most systems are routing problems — a Router eliminates 60-80% of unnecessary work
-- **P2 Context Mgmt**: Context is a resource you manage — Structured Sendoff vs Full Reset is the skill
-- **P3 Structural Guarantees**: Output schemas beat runtime checks — enforce quality through structure at zero cost
-- **P4 Error@Source**: Handle errors where they happen — Fallback Router at the tool, not Evaluator at the end
+### 2. `api_call` — API Tool (Tool)
+- **What it does**: Makes structured API calls (REST endpoints, webhooks, external services)
+- **Why it matters**: Distinct from web_search (browsing). API calls are structured, authenticated, and can fail with specific error codes. Teaches: tool-specific error handling, structured input/output
+- **Config**: `endpoint` label (cosmetic — e.g. "Stripe API", "Slack Webhook")
+- **Cost**: $0.08, **Latency**: 0.8s
+- **Icon**: `Webhook` (lucide)
 
-## Scenarios After Redesign (6 total)
+### 3. `human_review` — Human-in-the-Loop (Control)
+- **What it does**: Pauses the pipeline for human approval/review
+- **Why it matters**: Critical real-world pattern. Not everything should be automated. Teaches: when to insert human checkpoints (high-stakes decisions, compliance), cost of human latency vs automation risk
+- **Config**: `reviewType` ("approval" | "edit" | "escalation")
+- **Cost**: $0 (free), **Latency**: 30s (simulated human wait), **Reliability**: +15% bonus when placed before high-stakes output
+- **Icon**: `UserCheck` (lucide)
 
-| # | Scenario | Mode | Difficulty | Primary Principles |
-|---|---|---|---|---|
-| 1 | Bloated Swarm | fixer | easy | Consolidation, model-task fit |
-| 2 | Gold Plater | fixer | easy | Model-task fit |
-| 3 | Content Machine | architect | medium | P2 (eval loop context), eval loops |
-| 4 | Safety Net | architect | medium | P4 (fallback routing) |
-| 5 | **The Ops Center** (NEW) | architect | medium-hard | P1 + P2 + P3 + P4 |
-| 6 | **The Due Diligence Engine** (NEW) | architect | hard | P2 (multi-stage) + P3 + P4 + eval loops |
+### 4. `mcp_server` — MCP Server (Tool)
+- **What it does**: A "tool aggregator" that bundles multiple tool capabilities behind a single coordination point. In the simulator, it replaces 2-3 individual tool nodes with one server that serves them all.
+- **Why it matters**: Teaches MCP pattern — instead of giving an executor 15 tools directly, route through an MCP server that manages tool selection. Reduces context pollution. But adds a coordination hop (latency cost).
+- **Config**: `servedTools` (checkboxes: which tool types this MCP serves — web_search, file_rw, tool_rag, code_exec, api_call)
+- **Cost**: $0.30 (coordination overhead), **Latency**: 0.5s (added hop) + underlying tool latencies
+- **Icon**: `Server` (lucide)
+- **Grading**: MCP server that serves 3+ tools gets +5% reliability bonus (cleaner tool management). MCP serving 1 tool gets -3% (unnecessary overhead).
 
-### Key: the 2 new scenarios are architecturally DISTINCT
+## Scenario Changes
 
-- **Ops Center** = fan-out → merge → route → fan-out (WIDE — horizontal branching)
-- **Due Diligence** = plan → gather → gate → draft → evaluate → revise loop (DEEP — vertical pipeline with iteration)
+### Modify: "The Bloated Swarm" (easy, fixer)
+**No change needed.** Pure consolidation lesson — new tools don't apply here.
 
----
+### Modify: "The Gold Plater" (easy, fixer)
+**No change needed.** Pure model-sizing lesson.
 
-## New Scenario 1: "The Ops Center" (~11 nodes, medium-hard)
+### Modify: "The Content Machine" (medium, architect)
+**Add**: `api_call` to available nodes.
+**Why**: Content pipeline should publish to CMS/social platforms via API calls. This is realistic and teaches: API calls at the end of a pipeline (write-back pattern), not just data-fetching at the start.
+**Updated hints**: Add hint about using API Tool for publishing after quality check passes.
 
-**Narrative:** IT operations center handling incoming incidents. Alerts arrive as unstructured text. System must gather diagnostics from multiple sources (some unreliable), filter the noise, classify severity, then produce a structured incident report.
+### Modify: "The Safety Net" (medium, architect)  
+**Add**: `code_exec` to available nodes + make it part of the failure scenario.
+**Why**: Document processing often involves code (parsing PDFs, extracting tables). Code execution can fail just like file reads. Teaches: multiple failure points need multiple fallback routers (or one MCP server).
+**Updated failureSequence**: Both `file_rw` AND `code_exec` can fail. The answer should handle both.
 
-**Key insight:** Gather data FIRST, then route. You can't triage without intelligence.
+### Modify: "The Ops Center" (hard, architect)
+**Add**: `code_exec`, `human_review` to available nodes.
+**Why**: 
+- Critical incidents need human approval before executing mitigation (you don't auto-remediate P1s without human sign-off)
+- Log analysis often involves code (parsing, aggregation)
+- Teaches: human-in-the-loop placement (after triage, before remediation action, NOT before diagnosis)
+**Updated answer**: Add human_review after Critical Response, before output. Routine path skips human review (auto-resolved).
 
-**Optimal architecture:**
-```
-                               ┌→ WebSearch(status pages) ─────────────┐
-Input → (fan-out to 3 tools) → ├→ FileRW(logs) → FallbackRouter ──────┼→ ContextGate → Router(severity) → Executor(critical, +schema) → Evaluator → Output
-                               │                    ↓ failure          │                               ↗
-                               │               Executor(log fallback) ─┘           Executor(routine, +schema) ──→ Evaluator
-                               └→ RAG(runbooks) ───────────────────────┘
-```
+### Modify: "The Due Diligence Engine" (hard, architect)
+**Add**: `api_call`, `mcp_server`, `human_review` to available nodes.
+**Why**:
+- Financial data comes from APIs (Bloomberg, SEC EDGAR) not web search
+- Legal + financial + market data tools are a perfect MCP server candidate (3 tools → 1 server)  
+- Investment decisions require human sign-off before the memo is finalized
+- Teaches: MCP consolidation, human-in-the-loop for high-stakes decisions, API vs web search distinction
+**Updated answer**: Replace 3 parallel tool nodes with 1 MCP server. Add human_review before final output.
 
-**Nodes (11):**
-1. Input
-2. WebSearch (status pages)
-3. FileRW (system logs)
-4. RAG (runbooks/playbooks)
-5. FallbackRouter (catches log retrieval failures — P4)
-6. Executor "Log Fallback" (acknowledges missing logs, suggests alternatives — P4)
-7. ContextGate (structured_sendoff — filters noisy diagnostic data into clean brief — P2)
-8. Router (classifies severity: Critical vs Routine based on filtered data — P1)
-9. Executor "Critical Response" (gpt-4o, with outputSchema for incident report JSON — P3)
-10. Executor "Routine Response" (gpt-4o-mini, with outputSchema — P3)
-11. Evaluator (completeness + safety check)
-12. Output
+### New Scenario: "The MCP Migration" (medium, fixer)
+**Concept**: The student inherits an executor with 12 tools attached directly (massive context pollution). They need to refactor by:
+1. Extracting tools into MCP servers by domain (data tools, action tools, comms tools)
+2. Routing through the right MCP server
+3. Reducing the executor's direct tool count from 12 to 0
 
-**Why each node earns its place:**
-- 3 parallel tools: realistic diagnostic gathering, shows fan-out pattern
-- FallbackRouter + Log Fallback: P4 — errors handled at the tool, not caught late by evaluator
-- ContextGate: P2 — raw diagnostic output is noisy (HTML, stack traces, duplicate data). Without filtering, the downstream LLM gets polluted context
-- Router AFTER data: P1 — you classify severity based on what you found, not based on the raw alert text
-- 2 response executors with schema: P3 — incident reports MUST have structure (severity, affected_systems, root_cause, mitigation_steps). Schema enforces this at zero cost vs an evaluator checking format
-- Evaluator: checks content quality (not format — that's handled by schema)
+**Teaches**: 
+- P5 (new): "Tools are a resource you manage, not a list you append to"
+- MCP as a tool organization pattern
+- Context pollution from excessive tool lists
 
-**Budget:**
-- Cost: ~$3.45 total (well under $14 max)
-- Latency: ~5.1s longest path (under 10s max)
-- Reliability target: 82 min
+**Available nodes**: input, output, executor, router, mcp_server, web_search, file_rw, tool_rag, code_exec, api_call, context_gate
+**Initial state**: 1 executor with `tools: [12 items]`, wired Input → Executor → Output. Expensive, slow, unreliable.
+**Goal**: Refactor to use MCP servers with routing. Dramatically lower cost and higher reliability.
 
-**Available nodes:** input, output, executor, evaluator, router, web_search, file_rw, tool_rag, context_gate, fallback_router
+## Grading Engine Updates
 
-**failureSequence:** `{ nodeType: "file_rw", pattern: [true, false, true], failureMessage: "System logs returned corrupted/partial data" }`
+### New cost/latency rules:
+- `code_exec`: cost $0.15, latency 1.5s
+- `api_call`: cost $0.08, latency 0.8s
+- `human_review`: cost $0, latency 30s (massive latency — intentional trade-off)
+- `mcp_server`: cost $0.30 + sum of served tool costs, latency 0.5s + max served tool latency
 
----
+### New reliability rules:
+- `human_review` before high-stakes output: +15% bonus
+- `human_review` before routine output: -5% penalty (unnecessary bottleneck)
+- `mcp_server` serving 3+ tools: +5% bonus
+- `mcp_server` serving 1 tool: -3% penalty (overhead without benefit)
+- `code_exec` without fallback_router (when in failureSequence): -10% penalty
 
-## New Scenario 2: "The Due Diligence Engine" (~12 nodes, hard)
-
-**Narrative:** M&A due diligence system. Given a target company, research from multiple sources, handle unreliable legal document retrieval, manage context across pipeline stages, and produce a structured investment memo — iterating until quality is sufficient.
-
-**Key insight:** Multi-stage pipelines need context management at EACH stage boundary, and eval loops need context gates to prevent draft pollution.
-
-**Optimal architecture:**
-```
-Input → Executor(planner) → ┌→ WebSearch(market data) ──────────────────┐
-                            ├→ FileRW(legal docs) → FallbackRouter ─────┼→ ContextGate#1 → Executor(memo writer, +schema) → Evaluator ──pass──→ Output
-                            │                           ↓ failure       │                        ↑                            │
-                            │                     Executor(gap noter) ──┘                   ContextGate#2 ←────────fail──────┘
-                            └→ RAG(company data) ───────────────────────┘
-```
-
-**Nodes (12):**
-1. Input
-2. Executor "Research Planner" (gpt-4o-mini — decomposes the question into research tasks)
-3. WebSearch (public market data, news, SEC filings)
-4. FileRW (internal legal documents, contracts)
-5. RAG (company knowledge base, prior memos)
-6. FallbackRouter (catches legal doc failures — P4)
-7. Executor "Gap Noter" (gpt-4o-mini — flags what legal data is missing, suggests workarounds — P4)
-8. ContextGate #1 (structured_sendoff — merges 3 research streams into a clean synthesis brief — P2)
-9. Executor "Memo Writer" (gpt-4o, with outputSchema for investment memo JSON — P3)
-10. Evaluator (memo quality: completeness, risk coverage, recommendation justification)
-11. ContextGate #2 (structured_sendoff — strips old draft, keeps eval feedback + original brief — P2 in loop)
-12. Output
-
-**Why each node earns its place:**
-- Planner: decomposes question into research tasks (real pattern — you plan before you search)
-- 3 parallel research tools: one per data source (market, legal, company history)
-- FallbackRouter + Gap Noter: P4 — legal docs are unreliable (25% failure). The gap noter explicitly flags what's missing so the memo writer can caveat appropriately, rather than an end-evaluator catching bad output
-- ContextGate #1: P2 — raw research is verbose (full SEC filings, legal boilerplate). The handoff brief extracts: key financial metrics, identified risks, team info, competitive position
-- Memo Writer with schema: P3 — investment memos have strict structure (company_overview, financials, risks, team, recommendation, confidence_level). Schema enforces this
-- Evaluator → ContextGate #2 → loop: P2 — the CRITICAL context decision. If you loop the full draft + feedback + original research back, context explodes. Gate #2 strips the old draft and only passes: evaluator feedback + original brief. Memo writer starts fresh with guidance. THIS is "compacting a Claude Code session vs seeding a fresh sub-agent"
-- Two context gates serve DIFFERENT purposes (filtering vs loop hygiene) — teaches that gates aren't one-trick
-
-**Budget:**
-- Cost: ~$8.60 total (under $15 max, accounting for ×3 loop on memo writer + evaluator)
-- Latency: ~9.7s longest path with loop multiplier (under 14s max)
-- Reliability target: 80 min
-
-**Available nodes:** all 10 types
-
-**failureSequence:** `{ nodeType: "file_rw", pattern: [false, true, true, false], failureMessage: "Legal documents returned incomplete/corrupted data" }`
-
----
-
-## Engine Support: outputSchema Scoring
-
-### GradingEngine.ts changes
-
-Add a **Structural Guarantee bonus** that rewards outputSchema usage:
-
-```typescript
-// After evaluator bonuses section, before tool count penalties:
-
-// Output schema bonus (structural guarantees)
-const schemaNodes = nodes.filter((n) =>
-  (n.type === "executor" || n.type === "evaluator") && n.config.outputSchema?.trim()
-);
-let schemaBonus = 0;
-schemaNodes.forEach((n, i) => {
-  // Validate it's parseable JSON
-  try {
-    JSON.parse(n.config.outputSchema!);
-    const bonus = i === 0 ? 8 : 3; // First schema +8%, additional +3%
-    bonuses.push({ label: `Schema: ${n.config.label}`, value: bonus });
-    schemaBonus += bonus;
-  } catch {
-    warnings.push(`${n.config.label}: outputSchema is not valid JSON`);
-  }
-});
-
-// Add to reliability total
-reliability += schemaBonus;
-```
-
-**Why this scoring:**
-- First valid schema: +8% reliability (significant, encourages adoption)
-- Additional schemas: +3% each (diminishing returns, discourages spam)
-- Invalid JSON: warning but no bonus (teaches that schemas must be valid)
-- This mirrors the evaluator bonus pattern (25/10/2) but at lower values since schemas are "free" (no cost/latency)
-
----
+### Human review placement detection:
+- "High-stakes" = human_review connects (directly or via 1 hop) to output AND the path includes a router with "Critical"/"Urgent" route OR an evaluator fail path
+- "Routine" = human_review on every path regardless of classification
 
 ## Files to Modify
 
-| File | Change |
-|---|---|
-| `src/data/scenarios/index.ts` | Remove triage-nurse, trading-floor, full-stack-agent. Add ops-center + due-diligence-engine |
-| `src/data/answers.ts` | Remove old 3 answers, add 2 new answers with full node configs |
-| `src/engine/GradingEngine.ts` | Add outputSchema bonus scoring |
-| `src/pages/ScenarioSelect.tsx` | Update to show 6 scenarios (2 fixer, 4 architect) |
-| `src/types/simulator.ts` | Add optional `difficulty` field to Scenario type |
-
-Files NOT changed: nodeTypes.ts, models.ts, InspectorPanel.tsx (schema UX is already functional), bloated-swarm.ts, SimulatorNode.tsx, Canvas.tsx, store
-
----
+1. **`src/types/simulator.ts`** — Add 4 new node types to `SimNodeType` union, add `servedTools`, `endpoint`, `reviewType` to `NodeConfig`
+2. **`src/data/nodeTypes.ts`** — Add 4 new `NODE_TYPE_META` entries
+3. **`src/engine/GradingEngine.ts`** — Add cost/latency/reliability rules for new nodes
+4. **`src/components/nodes/SimulatorNode.tsx`** — Add icons, colors for new types; MCP server shows served tool badges
+5. **`src/components/simulator/InspectorPanel.tsx`** — Add config UI for MCP (tool checkboxes), API (endpoint label), Human Review (type selector)
+6. **`src/data/scenarios/index.ts`** — Update 4 existing scenarios, add "MCP Migration" scenario
+7. **`src/data/scenarios/mcp-migration.ts`** — New scenario file
+8. **`src/data/answers.ts`** — Update 4 answers, add MCP Migration answer
+9. **`src/components/simulator/NodePalette.tsx`** — No changes needed (auto-picks up from NODE_TYPE_META)
+10. **`src/index.css`** — Add colors for new node categories (human = warm amber, mcp = indigo)
 
 ## Verification
-
-1. **Cost math**: Manually verify both answers fit within maxCost (including loop multipliers)
-2. **Latency math**: Verify longest-path latency for both answers
-3. **Schema bonus**: Test that the grading engine awards the bonus for valid schemas and warns on invalid ones
-4. **Show Answer**: Confirm answer button loads correct architecture for all 6 scenarios
-5. **Lint + Build**: Must pass
+- All 7 scenarios load without error
+- All 7 answers stay within their budget constraints
+- New nodes appear in palette when scenario includes them
+- MCP server config UI shows tool checkboxes
+- Human review shows type selector
+- Grading engine properly scores MCP bonus/penalty and human review placement
+- Context Thermometer reflects MCP tool consolidation (MCP's served tools count toward tool total)
