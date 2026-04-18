@@ -1,0 +1,98 @@
+import type { ModelDef } from "@/types/simulator";
+
+export const MODELS: ModelDef[] = [
+  {
+    id: "gpt-4o-mini",
+    name: "GPT-4o Mini",
+    costPer1kTokens: 0.15,
+    avgLatency: 0.8,
+    reliability: 0.97,
+    tier: "small",
+    capabilities: ["text", "classification", "extraction"],
+  },
+  {
+    id: "claude-haiku",
+    name: "Claude Haiku",
+    costPer1kTokens: 0.25,
+    avgLatency: 0.6,
+    reliability: 0.97,
+    tier: "small",
+    capabilities: ["text", "classification", "extraction", "code"],
+  },
+  {
+    id: "gemini-flash",
+    name: "Gemini Flash",
+    costPer1kTokens: 0.10,
+    avgLatency: 0.5,
+    reliability: 0.95,
+    tier: "small",
+    capabilities: ["text", "classification", "summarization"],
+  },
+  {
+    id: "gpt-4o",
+    name: "GPT-4o",
+    costPer1kTokens: 2.50,
+    avgLatency: 1.5,
+    reliability: 0.98,
+    tier: "medium",
+    capabilities: ["text", "reasoning", "code", "analysis", "creative"],
+  },
+  {
+    id: "claude-sonnet",
+    name: "Claude Sonnet",
+    costPer1kTokens: 3.00,
+    avgLatency: 1.8,
+    reliability: 0.98,
+    tier: "medium",
+    capabilities: ["text", "reasoning", "code", "analysis", "creative"],
+  },
+  {
+    id: "gemini-pro",
+    name: "Gemini Pro",
+    costPer1kTokens: 1.25,
+    avgLatency: 1.2,
+    reliability: 0.96,
+    tier: "medium",
+    capabilities: ["text", "reasoning", "code", "analysis"],
+  },
+  {
+    id: "gpt-4-turbo",
+    name: "GPT-4 Turbo",
+    costPer1kTokens: 10.00,
+    avgLatency: 3.0,
+    reliability: 0.99,
+    tier: "large",
+    capabilities: ["text", "reasoning", "code", "analysis", "creative", "planning"],
+  },
+  {
+    id: "claude-opus",
+    name: "Claude Opus",
+    costPer1kTokens: 15.00,
+    avgLatency: 4.0,
+    reliability: 0.99,
+    tier: "large",
+    capabilities: ["text", "reasoning", "code", "analysis", "creative", "planning"],
+  },
+  {
+    id: "o1-preview",
+    name: "o1 Preview",
+    costPer1kTokens: 15.00,
+    avgLatency: 8.0,
+    reliability: 0.995,
+    tier: "xl",
+    capabilities: ["text", "deep-reasoning", "code", "math", "analysis", "planning"],
+  },
+  {
+    id: "o1-mini",
+    name: "o1 Mini",
+    costPer1kTokens: 3.00,
+    avgLatency: 4.0,
+    reliability: 0.98,
+    tier: "xl",
+    capabilities: ["text", "reasoning", "code", "math"],
+  },
+];
+
+export function getModelById(id: string): ModelDef | undefined {
+  return MODELS.find((m) => m.id === id);
+}

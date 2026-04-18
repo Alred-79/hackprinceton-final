@@ -1,11 +1,17 @@
-import Index from "./pages/Index";
+import ScenarioSelect from "./pages/ScenarioSelect";
+import Simulator from "./pages/Simulator";
 import NotFound from "./pages/NotFound";
 
 export const routers = [
     {
       path: "/",
       name: 'home',
-      element: <Index />,
+      element: <ScenarioSelect />,
+    },
+    {
+      path: "/simulator/:scenarioId",
+      name: 'simulator',
+      element: <Simulator />,
     },
     /* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */
     {
