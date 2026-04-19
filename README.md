@@ -10,9 +10,9 @@ We built this at HackPrinceton.
 
 There are two main modes.
 
-**Scenario Mode** is like Leetcode for agent architecture. You get a broken or inefficient multi-agent system and your job is to fix it. Maybe someone built seven separate Claude Opus agents for a customer support bot when one router and two executors would do the same job for a fraction of the cost. You drag nodes around, rewire the graph, swap out models, and submit. The grading engine runs a deterministic analysis of your design — it calculates the real dollar cost per run, estimates p95 latency based on your topology, checks for things like missing context gates, disconnected nodes, or loops without termination conditions, and scores your solution against the optimal answer.
+**Scenario Mode** is like Leetcode for agent architecture. You get a broken or inefficient multi-agent system and your job is to fix it. Maybe someone built seven separate Claude Opus agents for a customer support bot when one router and two executors would do the same job for a fraction of the cost. You drag nodes around, rewire the graph, swap out models, and submit. Each node is a tradeoff. The grading engine runs a deterministic analysis of your design. It calculates the real dollar cost per run, estimates p95 latency based on your topology, checks for things like missing context gates, disconnected nodes, assess each prompt, or loops without termination conditions, and scores your solution against the fully optimized answer.
 
-**Workflow Architect** is a blank canvas. You paste in a description of what you're trying to build — something like "when a Sentry alert fires, fetch the stack trace, query our database for affected users, and post a summary to Slack" — and it generates a suggested agent graph for you. From there you can edit it, see the cost breakdown, and understand why each node is where it is.
+**Workflow Architect** is a blank canvas. You paste in a description of what you're trying to build (something like "when a Sentry alert fires, fetch the stack trace, query our database for affected users, and post a summary to Slack") and it generates a suggested agent graph for you. From there you can edit it, see the cost breakdown, and understand why each node is where it is.
 
 The three scenarios that ship with it cover a bloated customer support swarm, a threat analysis pipeline that needs a feedback loop, and an MCP server migration. Each one teaches a different principle: model consolidation, evaluator-executor loops, and tool abstraction.
 
@@ -65,7 +65,7 @@ src/
 
 ## How grading works
 
-When you submit a solution, the grading engine walks your graph and computes everything deterministically — no LLM involved. It calculates cost by summing up model costs per node (with a loop multiplier for cyclic paths), estimates latency by finding the critical path through the DAG, and checks for structural issues like disconnected nodes, missing evaluators in agentic loops, or chained executors that bypass context gates. Bonuses and penalties adjust your base score, and anything that hits a defined threshold in the scenario's answer key tips the result from "passed" to "optimal."
+When you submit a solution, the grading engine walks your graph and computes everything deterministically. No LLM involved. It calculates cost by summing up model costs per node (with a loop multiplier for cyclic paths), estimates latency by finding the critical path through the DAG, and checks for structural issues like disconnected nodes, missing evaluators in agentic loops, or chained executors that bypass context gates. Bonuses and penalties adjust your base score, and anything that hits a defined threshold in the scenario's answer key tips the result from "passed" to "optimal."
 
 ---
 
