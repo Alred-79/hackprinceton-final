@@ -1,3 +1,4 @@
+import SynthwaveLanding from "./pages/SynthwaveLanding";
 import ScenarioSelect from "./pages/ScenarioSelect";
 import Simulator from "./pages/Simulator";
 import WorkflowArchitect from "./pages/WorkflowArchitect";
@@ -6,6 +7,11 @@ import NotFound from "./pages/NotFound";
 export const routers = [
     {
       path: "/",
+      name: 'landing',
+      element: <SynthwaveLanding />,
+    },
+    {
+      path: "/app",
       name: 'home',
       element: <ScenarioSelect />,
     },

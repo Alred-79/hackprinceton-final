@@ -32,7 +32,7 @@ export default function Simulator() {
       loadScenario(scenario);
       setShowIntro(true);
     } else {
-      navigate("/");
+      navigate("/app");
     }
   }, [scenarioId, loadScenario, navigate]);
 
@@ -50,7 +50,7 @@ export default function Simulator() {
     <div className="h-screen flex flex-col bg-background overflow-hidden">
       {/* Top bar */}
       <div className="flex items-center gap-3 border-b border-border/50 px-4 py-2 bg-card/60 backdrop-blur-sm shrink-0">
-        <Button variant="ghost" size="sm" onClick={() => navigate("/")} className="gap-1 text-xs">
+        <Button variant="ghost" size="sm" onClick={() => navigate("/app")} className="gap-1 text-xs">
           <ArrowLeft className="h-3.5 w-3.5" />
           Scenarios
         </Button>

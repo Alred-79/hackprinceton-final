@@ -49,8 +49,7 @@ export default function ScenarioSelect() {
             Leetcode for Agentic AI
           </h1>
           <p className="text-muted-foreground max-w-xl mx-auto">
-            Master agent architecture by fixing broken systems and designing optimal solutions.
-            Each scenario teaches key principles of multi-agent design.
+            map out complex, multi-agent AI workflows on a dynamic digital canvas
           </p>
           <button
             onClick={() => navigate("/architect")}
