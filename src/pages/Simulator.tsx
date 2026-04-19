@@ -11,7 +11,7 @@ import { Editorial } from "@/components/simulator/Editorial";
 import { ScenarioIntro } from "@/components/simulator/ScenarioIntro";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ArrowLeft, BookOpen, Settings, BarChart3, Blocks } from "lucide-react";
+import { ArrowLeft, BookOpen, Settings, BarChart3, Blocks, ScrollText } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function Simulator() {
@@ -56,18 +56,29 @@ export default function Simulator() {
         </Button>
         <div className="h-4 w-px bg-border/50" />
         <h1 className="text-sm font-semibold text-foreground">{currentScenario.title}</h1>
-        <span className="text-xs text-muted-foreground hidden md:inline">{currentScenario.brief}</span>
         <div className="flex-1" />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowIntro(true)}
+          className="gap-1.5 text-xs border-rose-400/30 text-rose-400 hover:bg-rose-400/10 hover:text-rose-300 hover:border-rose-400/50"
+        >
+          <ScrollText className="h-3.5 w-3.5" />
+          Problem Statement
+        </Button>
         {editorialUnlocked && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowEditorial(true)}
-            className="gap-1 text-xs"
-          >
-            <BookOpen className="h-3.5 w-3.5" />
-            Editorial
-          </Button>
+          <>
+            <div className="h-4 w-px bg-border/50" />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowEditorial(true)}
+              className="gap-1 text-xs"
+            >
+              <BookOpen className="h-3.5 w-3.5" />
+              Editorial
+            </Button>
+          </>
         )}
       </div>
 
