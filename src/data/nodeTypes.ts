@@ -197,10 +197,10 @@ export const NODE_TYPE_META: Record<SimNodeType, NodeTypeMeta> = {
     maxOutputs: 5,
     defaultConfig: { label: "MCP Server", servedTools: [] },
   },
-  event_stream: {
-    type: "event_stream",
-    label: "Event Stream",
-    description: "Publishes events to a message bus (Kafka, SNS, webhooks) for async processing",
+  kafka_stream: {
+    type: "kafka_stream",
+    label: "Kafka Stream",
+    description: "Publishes events to a Kafka topic or message bus for async downstream processing",
     category: "tool",
     color: "node-stream",
     icon: "Radio",
@@ -208,7 +208,7 @@ export const NODE_TYPE_META: Record<SimNodeType, NodeTypeMeta> = {
     hasPrompt: false,
     maxInputs: 5,
     maxOutputs: 5,
-    defaultConfig: { label: "Event Stream" },
+    defaultConfig: { label: "Kafka Stream" },
   },
 };
 

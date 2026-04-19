@@ -148,7 +148,7 @@ const SCENARIO_INTROS: Record<string, IntroContent> = {
     situation:
       "You see a messy graph: 5 single-tool MCP servers, 4 Claude Opus executors chained sequentially, and a direct pipe to output. Every node is bleeding money, there's no quality check, the threat feed has no error handling, and critical alerts bypass human review entirely.",
     objective:
-      "Consolidate MCPs by domain (3+ tools = bonus). Right-size models. Add a Fallback Router on the unreliable threat feed. Filter noisy intel through a Context Gate. Route by severity (Critical/Standard). Add an Evaluator with a revision loop (+ its own Context Gate for hygiene). Gate critical alerts through Human Review. Dispatch via Event Stream.",
+      "Consolidate MCPs by domain (3+ tools = bonus). Right-size models. Add a Fallback Router on the unreliable threat feed. Filter noisy intel through a Context Gate. Route by severity (Critical/Standard). Add an Evaluator with a revision loop (+ its own Context Gate for hygiene). Gate critical alerts through Human Review. Dispatch via Kafka Stream.",
     toolTips: [
       "Delete the 5 single-tool MCPs -- create 1 Intel MCP with web_search + tool_rag + api_call (3 tools = bonus)",
       "Keep file_rw and code_exec as standalone tools (they serve specific pipeline stages)",
@@ -156,10 +156,10 @@ const SCENARIO_INTROS: Record<string, IntroContent> = {
       "Use a Context Gate (structured sendoff) to filter raw OSINT/feed/RAG noise before severity routing",
       "Route by severity: 'Critical' triggers gpt-4o + output schema + Human Review. 'Standard' uses gpt-4o-mini",
       "The Evaluator's fail path needs a Revision Gate to strip old drafts before looping back",
-      "Event Stream dispatches alerts asynchronously -- faster than blocking API calls",
+      "Kafka Stream dispatches alerts asynchronously -- faster than blocking API calls",
     ],
     proTip:
-      "This scenario exercises EVERY major feature: MCP consolidation, model right-sizing, fallback routing, context gates (x2), eval loops, output schemas, human review, severity routing, and event streaming. The broken graph has 5+ penalties. The optimal graph lights up 6+ bonuses. That's the demo.",
+      "This scenario exercises EVERY major feature: MCP consolidation, model right-sizing, fallback routing, context gates (x2), eval loops, output schemas, human review, severity routing, and Kafka streaming. The broken graph has 5+ penalties. The optimal graph lights up 6+ bonuses. That's the demo.",
   },
 };
 

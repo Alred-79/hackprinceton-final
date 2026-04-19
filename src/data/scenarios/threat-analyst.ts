@@ -5,7 +5,7 @@ export const threatAnalyst: Scenario = {
   title: "The Threat Analyst",
   brief: "Fix a bleeding-money SOC pipeline: 5 single-tool MCPs, all Opus, no eval, no human review — and it just auto-published a false positive.",
   description:
-    "You've inherited a Security Operations Center's automated threat intelligence system. The previous engineer built it with 5 separate MCP servers (one per tool), every executor runs Claude Opus, there's no quality gate, no error handling on the threat feed parser, and critical alerts go straight to output without human review. Last week it auto-published an unreviewed 'CRITICAL' threat brief that turned out to be a false positive. Leadership wants it fixed yesterday. Your job: consolidate MCPs by domain, right-size models, add evaluation loops with context hygiene, handle unreliable threat feeds, gate critical alerts through human review, and dispatch alerts via event streaming.",
+    "You've inherited a Security Operations Center's automated threat intelligence system. The previous engineer built it with 5 separate MCP servers (one per tool), every executor runs Claude Opus, there's no quality gate, no error handling on the threat feed parser, and critical alerts go straight to output without human review. Last week it auto-published an unreviewed 'CRITICAL' threat brief that turned out to be a false positive. Leadership wants it fixed yesterday. Your job: consolidate MCPs by domain, right-size models, add evaluation loops with context hygiene, handle unreliable threat feeds, gate critical alerts through human review, and dispatch alerts via Kafka stream.",
   mode: "fixer",
   difficulty: "hard",
   expectedInputs: "Raw threat indicators: IP addresses, domain names, file hashes, CVE references, monitoring alerts",
@@ -14,7 +14,7 @@ export const threatAnalyst: Scenario = {
     "input", "output", "executor", "evaluator", "router",
     "context_gate", "web_search", "file_rw", "tool_rag",
     "fallback_router", "code_exec", "api_call", "human_review",
-    "mcp_server", "event_stream",
+    "mcp_server", "kafka_stream",
   ],
   initialNodes: [
     { id: "input-1", type: "input", config: { label: "Threat Indicators" }, position: { x: 50, y: 300 }, locked: true },
@@ -103,7 +103,7 @@ export const threatAnalyst: Scenario = {
     "Critical threats should never auto-publish. Add Human Review before the output on the critical path.",
     "Raw OSINT data, feed results, and RAG lookups are noisy. A Context Gate before analysis filters out the noise.",
     "If the evaluator rejects the brief for revision, a SECOND Context Gate prevents the old draft from bloating the revision loop.",
-    "An Event Stream node publishes alerts asynchronously — faster than blocking on API calls.",
+    "A Kafka Stream node publishes alerts asynchronously — faster than blocking on API calls.",
   ],
   failureSequence: {
     nodeType: "file_rw",
@@ -116,7 +116,7 @@ export const threatAnalyst: Scenario = {
   llmThresholds: { minPromptScore: 60, minArchitectureScore: 65 },
   editorial: {
     explanation:
-      "Consolidate 5 single-tool MCPs into 1 Intel MCP (web_search, tool_rag, api_call → 3 tools = bonus). Keep file_rw and code_exec as standalone tools. Handle the unreliable threat feed with a Fallback Router + Gap Noter. Merge all data through a Context Gate (structured sendoff) to filter noise. Route by severity (Critical/Standard) with a lightweight model. Critical briefs get a capable model + output schema + Human Review. Both paths feed an Evaluator; fail path loops through a Revision Context Gate. Dispatch alerts via Event Stream. Every node serves the narrative — nothing is forced.",
+      "Consolidate 5 single-tool MCPs into 1 Intel MCP (web_search, tool_rag, api_call → 3 tools = bonus). Keep file_rw and code_exec as standalone tools. Handle the unreliable threat feed with a Fallback Router + Gap Noter. Merge all data through a Context Gate (structured sendoff) to filter noise. Route by severity (Critical/Standard) with a lightweight model. Critical briefs get a capable model + output schema + Human Review. Both paths feed an Evaluator; fail path loops through a Revision Context Gate. Dispatch alerts via Kafka Stream. Every node serves the narrative — nothing is forced.",
     commonMistakes: [
       { mistake: "Keeping 5 single-tool MCPs", whyItFails: "Each MCP adds $0.30 coordination overhead. With 1 tool each, you pay the overhead for zero benefit — 5 × penalty" },
       { mistake: "Keeping Claude Opus on all executors", whyItFails: "Classification and gap-noting are simple tasks. Opus costs $15/1k tokens for work a $0.15 model handles perfectly" },
@@ -149,7 +149,7 @@ export const threatAnalyst: Scenario = {
       "",
       "# Human gate + Alert dispatch",
       "graph.add_node('analyst_review', HumanReview('approval'))",
-      "graph.add_node('alert_dispatch', EventStream())",
+      "graph.add_node('alert_dispatch', KafkaStream())",
     ].join("\n"),
     keyConcepts: [
       "MCP consolidation: group by domain (3+ tools = bonus), don't wrap individual tools",
@@ -158,7 +158,7 @@ export const threatAnalyst: Scenario = {
       "Two-stage context management: Gate #1 filters noisy intel, Gate #2 manages revision loop hygiene",
       "Human-in-the-loop: Critical threats MUST have analyst sign-off before publication",
       "Structural guarantees: output schema enforces threat brief format at zero cost",
-      "Event streaming: async alert dispatch is faster than blocking API calls",
+      "Kafka streaming: async alert dispatch is faster than blocking API calls",
     ],
   },
 };

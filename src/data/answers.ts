@@ -567,7 +567,7 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
     ],
   },
 
-  // === THREAT ANALYST — Showcase: MCP consolidation + error handling + context management + eval loop + human review + event streaming ===
+  // === THREAT ANALYST — Showcase: MCP consolidation + error handling + context management + eval loop + human review + Kafka streaming ===
   "threat-analyst": {
     nodes: [
       { id: "input-1", type: "input", config: { label: "Threat Indicators" }, position: { x: 50, y: 320 }, locked: true },
@@ -657,7 +657,7 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
         position: { x: 1540, y: 250 },
       },
       {
-        id: "event-alert", type: "event_stream",
+        id: "event-alert", type: "kafka_stream",
         config: { label: "Alert Dispatch" },
         position: { x: 1720, y: 320 },
       },

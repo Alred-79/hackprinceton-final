@@ -18,7 +18,7 @@ export type SimNodeType =
   | "api_call"
   | "human_review"
   | "mcp_server"
-  | "event_stream";
+  | "kafka_stream";
 
 export type ContextGateMode = "full_reset" | "structured_sendoff";
 export type HumanReviewType = "approval" | "edit" | "escalation";
