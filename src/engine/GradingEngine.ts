@@ -36,6 +36,20 @@ export function computeDeterministicResults(
     if (n.type === "web_search") totalCost += 0.1;
     if (n.type === "file_rw") totalCost += 0.05;
     if (n.type === "tool_rag") totalCost += 0.2;
+    if (n.type === "code_exec") totalCost += 0.15;
+    if (n.type === "api_call") totalCost += 0.08;
+    if (n.type === "human_review") totalCost += 0; // free
+    if (n.type === "mcp_server") {
+      totalCost += 0.30; // coordination overhead
+      const served = n.config.servedTools || [];
+      served.forEach((t) => {
+        if (t === "web_search") totalCost += 0.1;
+        if (t === "file_rw") totalCost += 0.05;
+        if (t === "tool_rag") totalCost += 0.2;
+        if (t === "code_exec") totalCost += 0.15;
+        if (t === "api_call") totalCost += 0.08;
+      });
+    }
   });
 
   // --- Latency calculation ---
@@ -51,6 +65,16 @@ export function computeDeterministicResults(
     if (n.type === "web_search") return 2.0;
     if (n.type === "file_rw") return 0.5;
     if (n.type === "tool_rag") return 1.0;
+    if (n.type === "code_exec") return 1.5;
+    if (n.type === "api_call") return 0.8;
+    if (n.type === "human_review") return 30.0; // human wait time
+    if (n.type === "mcp_server") {
+      // coordination hop + max served tool latency
+      const served = n.config.servedTools || [];
+      const toolLatencies: Record<string, number> = { web_search: 2.0, file_rw: 0.5, tool_rag: 1.0, code_exec: 1.5, api_call: 0.8 };
+      const maxToolLat = served.reduce((mx, t) => Math.max(mx, toolLatencies[t] || 0), 0);
+      return 0.5 + maxToolLat;
+    }
     return 0;
   }
 
@@ -185,8 +209,63 @@ export function computeDeterministicResults(
     }
   }
 
+  // Human review bonus: +15% when before high-stakes output, -5% when unnecessary
+  const humanNodes = nodes.filter((n) => n.type === "human_review");
+  humanNodes.forEach((hr) => {
+    // Check if this human review connects toward output
+    const outgoing = edges.filter((e) => e.source === hr.id);
+    const reachesOutput = outgoing.some((e) => {
+      const target = nodeMap.get(e.target);
+      if (!target) return false;
+      if (target.type === "output") return true;
+      // Check one more hop
+      return edges.some((e2) => e2.source === e.target && nodeMap.get(e2.target)?.type === "output");
+    });
+    // Check if a router with "Critical" or "Urgent" routes exists upstream
+    const hasHighStakesPath = nodes.some((n) =>
+      n.type === "router" && (n.config.routes || []).some((r) =>
+        /critical|urgent|p1|p2/i.test(r)
+      )
+    );
+    if (reachesOutput && hasHighStakesPath) {
+      bonuses.push({ label: `Human Review: ${hr.config.label} (high-stakes)`, value: 15 });
+    } else if (reachesOutput) {
+      penalties.push({ label: `Human Review: ${hr.config.label} (unnecessary bottleneck)`, value: -5 });
+      reliability -= 5;
+    }
+  });
+
+  // MCP server bonus/penalty
+  const mcpNodes = nodes.filter((n) => n.type === "mcp_server");
+  mcpNodes.forEach((mcp) => {
+    const served = (mcp.config.servedTools || []).length;
+    if (served >= 3) {
+      bonuses.push({ label: `MCP Server: ${mcp.config.label} (${served} tools)`, value: 5 });
+    } else if (served <= 1) {
+      penalties.push({ label: `MCP Server: ${mcp.config.label} (overhead, only ${served} tool)`, value: -3 });
+      reliability -= 3;
+    }
+  });
+
   // Add bonuses to reliability
-  reliability += evalBonus + gateBonus + schemaBonus;
+  const humanBonus = humanNodes.reduce((sum, hr) => {
+    const outgoing = edges.filter((e) => e.source === hr.id);
+    const reachesOutput = outgoing.some((e) => {
+      const target = nodeMap.get(e.target);
+      if (!target) return false;
+      if (target.type === "output") return true;
+      return edges.some((e2) => e2.source === e.target && nodeMap.get(e2.target)?.type === "output");
+    });
+    const hasHighStakesPath = nodes.some((n) =>
+      n.type === "router" && (n.config.routes || []).some((r) => /critical|urgent|p1|p2/i.test(r))
+    );
+    return sum + (reachesOutput && hasHighStakesPath ? 15 : 0);
+  }, 0);
+  const mcpBonus = mcpNodes.reduce((sum, mcp) => {
+    const served = (mcp.config.servedTools || []).length;
+    return sum + (served >= 3 ? 5 : 0);
+  }, 0);
+  reliability += evalBonus + gateBonus + schemaBonus + humanBonus + mcpBonus;
   reliability = Math.max(0, Math.min(100, reliability));
 
   // Model reliability contribution

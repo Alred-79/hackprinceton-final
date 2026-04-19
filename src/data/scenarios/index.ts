@@ -1,4 +1,5 @@
 import { bloatedSwarm } from "./bloated-swarm";
+import { mcpMigration } from "./mcp-migration";
 import type { Scenario } from "@/types/simulator";
 
 const goldPlater: Scenario = {
@@ -66,11 +67,12 @@ const contentMachine: Scenario = {
   difficulty: "medium",
   expectedInputs: "Content brief with target audience, tone, and format requirements",
   expectedOutputs: "Polished marketing content that meets brand guidelines",
-  availableNodeTypes: ["input", "output", "executor", "evaluator", "router", "context_gate"],
+  availableNodeTypes: ["input", "output", "executor", "evaluator", "router", "context_gate", "api_call"],
   hints: [
     "An Evaluator creates a feedback loop for iterative improvement.",
     "Different content types (blog vs tweet) need different prompts — use a Router.",
     "Without a Context Gate in the loop, each iteration adds draft + feedback to context, eventually degrading quality.",
+    "After content passes quality check, an API Call can publish directly to your CMS or social platform.",
   ],
   maxCost: 10.0,
   maxLatency: 15.0,
@@ -107,7 +109,7 @@ const safetyNet: Scenario = {
   difficulty: "medium",
   expectedInputs: "Document processing request with file references",
   expectedOutputs: "Processed document summary or graceful fallback response",
-  availableNodeTypes: ["input", "output", "executor", "evaluator", "file_rw", "fallback_router", "context_gate"],
+  availableNodeTypes: ["input", "output", "executor", "evaluator", "file_rw", "fallback_router", "context_gate", "code_exec"],
   failureSequence: {
     nodeType: "file_rw",
     pattern: [true, false, true],
@@ -157,7 +159,7 @@ const opsCenter: Scenario = {
   difficulty: "hard",
   expectedInputs: "Unstructured incident alert (monitoring alert, user report, or error log excerpt)",
   expectedOutputs: "Structured incident report with severity classification, affected systems, root cause analysis, and mitigation steps",
-  availableNodeTypes: ["input", "output", "executor", "evaluator", "router", "web_search", "file_rw", "tool_rag", "context_gate", "fallback_router"],
+  availableNodeTypes: ["input", "output", "executor", "evaluator", "router", "web_search", "file_rw", "tool_rag", "context_gate", "fallback_router", "code_exec", "human_review"],
   failureSequence: {
     nodeType: "file_rw",
     pattern: [true, false, true],
@@ -168,9 +170,10 @@ const opsCenter: Scenario = {
     "System logs are unreliable. Handle the failure at the tool level with a Fallback Router, not with an evaluator at the end.",
     "Raw diagnostic data is noisy (HTML, stack traces, duplicates). Use a Context Gate before the severity Router to filter it.",
     "Incident reports have strict structure. An output schema enforces format at zero cost — no evaluator needed for format checking.",
+    "Critical incidents should require human approval before remediation — you don't auto-fix P1s without sign-off.",
   ],
   maxCost: 14.0,
-  maxLatency: 10.0,
+  maxLatency: 45.0,
   minReliability: 82,
   llmThresholds: { minPromptScore: 55, minArchitectureScore: 60 },
   editorial: {
@@ -220,7 +223,7 @@ const dueDiligenceEngine: Scenario = {
   difficulty: "hard",
   expectedInputs: "Target company name and acquisition context (deal size, strategic rationale, concerns)",
   expectedOutputs: "Structured investment memo with company overview, financials, risks, team assessment, and recommendation",
-  availableNodeTypes: ["input", "output", "executor", "evaluator", "router", "web_search", "file_rw", "tool_rag", "context_gate", "fallback_router"],
+  availableNodeTypes: ["input", "output", "executor", "evaluator", "router", "web_search", "file_rw", "tool_rag", "context_gate", "fallback_router", "api_call", "mcp_server", "human_review"],
   failureSequence: {
     nodeType: "file_rw",
     pattern: [false, true, true, false],
@@ -232,9 +235,11 @@ const dueDiligenceEngine: Scenario = {
     "Raw research data (full SEC filings, legal boilerplate) will overwhelm the memo writer. Use a Context Gate to extract only key findings.",
     "The eval loop needs its OWN Context Gate: strip the old draft, keep only evaluator feedback + original brief. This is the 'compact your session vs seed a fresh sub-agent' decision.",
     "Investment memos have strict structure. An output schema enforces it at zero cost.",
+    "Consider using an MCP Server to consolidate your research tools — less context pollution.",
+    "Investment decisions need human sign-off. Place Human Review before the final output.",
   ],
-  maxCost: 15.0,
-  maxLatency: 14.0,
+  maxCost: 16.0,
+  maxLatency: 50.0,
   minReliability: 80,
   llmThresholds: { minPromptScore: 60, minArchitectureScore: 65 },
   editorial: {
@@ -283,6 +288,7 @@ export const ALL_SCENARIOS: Scenario[] = [
   goldPlater,
   contentMachine,
   safetyNet,
+  mcpMigration,
   opsCenter,
   dueDiligenceEngine,
 ];

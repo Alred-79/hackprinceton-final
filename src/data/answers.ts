@@ -287,8 +287,100 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
     ],
   },
 
-  // === OPS CENTER — P1 Dispatch + P2 Context + P3 Schema + P4 Error ===
-  // Architecture: Fan-out → merge → route → fan-out (WIDE)
+  // === MCP MIGRATION ===
+  "mcp-migration": {
+    nodes: [
+      { id: "input-1", type: "input", config: { label: "Data Request" }, position: { x: 50, y: 300 }, locked: true },
+      {
+        id: "router-domain", type: "router",
+        config: {
+          label: "Domain Classifier",
+          model: "gpt-4o-mini",
+          routingPrompt: "Classify the request into one domain:\n- 'Research': needs web search, knowledge base, or information lookup\n- 'Data': needs file operations, code execution, or data processing\n- 'Comms': needs to send messages, call APIs, or trigger external services\n\nRespond with one word.",
+          routes: ["Research", "Data", "Comms"],
+        },
+        position: { x: 260, y: 300 },
+      },
+      {
+        id: "mcp-research", type: "mcp_server",
+        config: {
+          label: "Research MCP",
+          servedTools: ["web_search", "tool_rag"],
+        },
+        position: { x: 500, y: 120 },
+      },
+      {
+        id: "mcp-data", type: "mcp_server",
+        config: {
+          label: "Data MCP",
+          servedTools: ["file_rw", "code_exec"],
+        },
+        position: { x: 500, y: 300 },
+      },
+      {
+        id: "mcp-comms", type: "mcp_server",
+        config: {
+          label: "Comms MCP",
+          servedTools: ["api_call"],
+        },
+        position: { x: 500, y: 480 },
+      },
+      {
+        id: "exec-research", type: "executor",
+        config: {
+          label: "Research Agent",
+          model: "gpt-4o",
+          systemPrompt: "You are a research specialist. Use the data from the Research MCP server (web search results and RAG lookups) to answer research queries. Synthesize findings, cite sources, and provide structured summaries.",
+        },
+        position: { x: 740, y: 120 },
+      },
+      {
+        id: "exec-data", type: "executor",
+        config: {
+          label: "Data Agent",
+          model: "gpt-4o",
+          systemPrompt: "You are a data processing specialist. Use the data from the Data MCP server (file contents and code execution results) to process, analyze, and transform data. Output structured results with clear methodology.",
+        },
+        position: { x: 740, y: 300 },
+      },
+      {
+        id: "exec-comms", type: "executor",
+        config: {
+          label: "Comms Agent",
+          model: "gpt-4o-mini",
+          systemPrompt: "You are a communications specialist. Use the Comms MCP server (API calls) to send messages, trigger webhooks, or call external services. Confirm actions taken and report any errors.",
+        },
+        position: { x: 740, y: 480 },
+      },
+      {
+        id: "eval-quality", type: "evaluator",
+        config: {
+          label: "Quality Check",
+          model: "gpt-4o-mini",
+          evaluationPrompt: "Review the output for completeness and accuracy. Does it address the original request? Is the data properly structured?",
+          passFailCriteria: "PASS if: request fully addressed, output is structured and accurate. FAIL if: incomplete, wrong domain, or errors in output.",
+        },
+        position: { x: 960, y: 300 },
+      },
+      { id: "output-1", type: "output", config: { label: "Result" }, position: { x: 1180, y: 300 }, locked: true },
+    ],
+    edges: [
+      { id: "e1", source: "input-1", target: "router-domain" },
+      { id: "e2", source: "router-domain", target: "mcp-research", sourceHandle: "route-0" },
+      { id: "e3", source: "router-domain", target: "mcp-data", sourceHandle: "route-1" },
+      { id: "e4", source: "router-domain", target: "mcp-comms", sourceHandle: "route-2" },
+      { id: "e5", source: "mcp-research", target: "exec-research" },
+      { id: "e6", source: "mcp-data", target: "exec-data" },
+      { id: "e7", source: "mcp-comms", target: "exec-comms" },
+      { id: "e8", source: "exec-research", target: "eval-quality" },
+      { id: "e9", source: "exec-data", target: "eval-quality" },
+      { id: "e10", source: "exec-comms", target: "eval-quality" },
+      { id: "e11", source: "eval-quality", target: "output-1", sourceHandle: "pass" },
+    ],
+  },
+
+  // === OPS CENTER — P1 Dispatch + P2 Context + P3 Schema + P4 Error + Human Review ===
+  // Architecture: Fan-out → merge → route → fan-out (WIDE) + human sign-off on critical
   "ops-center": {
     nodes: [
       { id: "input-1", type: "input", config: { label: "Incident Alert" }, position: { x: 50, y: 300 }, locked: true },
@@ -319,13 +411,7 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
         config: {
           label: "Severity Classifier",
           model: "gpt-4o-mini",
-          routingPrompt: [
-            "Based on the filtered diagnostic data, classify severity:",
-            "- 'Critical': production down, data loss, security breach, multiple systems affected, customer-facing impact",
-            "- 'Routine': single system degraded, non-production, known issue with runbook, or false positive",
-            "",
-            "Consider: customer impact, data risk, multi-system scope. Respond with one word.",
-          ].join("\n"),
+          routingPrompt: "Based on the filtered diagnostic data, classify severity:\n- 'Critical': production down, data loss, security breach, multiple systems affected, customer-facing impact\n- 'Routine': single system degraded, non-production, known issue with runbook, or false positive\n\nConsider: customer impact, data risk, multi-system scope. Respond with one word.",
           routes: ["Critical", "Routine"],
         },
         position: { x: 880, y: 300 },
@@ -338,7 +424,15 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
           systemPrompt: "You are a senior incident commander writing a P1/P2 incident report. Identify the root cause (or hypothesis if incomplete data), list affected systems, provide mitigation steps in priority order, assess blast radius and customer impact. If log data was unavailable, note this gap. Be decisive and action-oriented.",
           outputSchema: INCIDENT_REPORT_SCHEMA,
         },
-        position: { x: 1120, y: 180 },
+        position: { x: 1120, y: 140 },
+      },
+      {
+        id: "human-signoff", type: "human_review",
+        config: {
+          label: "Incident Approval",
+          reviewType: "approval",
+        },
+        position: { x: 1320, y: 140 },
       },
       {
         id: "exec-routine", type: "executor",
@@ -358,9 +452,9 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
           evaluationPrompt: "Review incident report for CONTENT quality (format enforced by schema). Does it identify a root cause? Are mitigation steps actionable? If data was missing, is the gap acknowledged?",
           passFailCriteria: "PASS if: root cause identified or gap noted, mitigation steps are specific, severity matches evidence. FAIL if: vague 'investigate further', generic mitigation, or severity mismatch.",
         },
-        position: { x: 1120, y: 300 },
+        position: { x: 1320, y: 300 },
       },
-      { id: "output-1", type: "output", config: { label: "Incident Report" }, position: { x: 1380, y: 300 }, locked: true },
+      { id: "output-1", type: "output", config: { label: "Incident Report" }, position: { x: 1540, y: 300 }, locked: true },
     ],
     edges: [
       { id: "e1", source: "input-1", target: "web-status" },
@@ -375,14 +469,15 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
       { id: "e10", source: "gate-filter", target: "router-severity" },
       { id: "e11", source: "router-severity", target: "exec-critical", sourceHandle: "route-0" },
       { id: "e12", source: "router-severity", target: "exec-routine", sourceHandle: "route-1" },
-      { id: "e13", source: "exec-critical", target: "eval-completeness" },
-      { id: "e14", source: "exec-routine", target: "eval-completeness" },
-      { id: "e15", source: "eval-completeness", target: "output-1", sourceHandle: "pass" },
+      { id: "e13", source: "exec-critical", target: "human-signoff" },
+      { id: "e14", source: "human-signoff", target: "eval-completeness" },
+      { id: "e15", source: "exec-routine", target: "eval-completeness" },
+      { id: "e16", source: "eval-completeness", target: "output-1", sourceHandle: "pass" },
     ],
   },
 
-  // === DUE DILIGENCE ENGINE — P2 Multi-stage + P3 Schema + P4 Error + Eval Loop ===
-  // Architecture: Plan → gather → gate → draft → evaluate → revise loop (DEEP)
+  // === DUE DILIGENCE ENGINE — P2 Multi-stage + P3 Schema + P4 Error + Eval Loop + Human Review ===
+  // Architecture: Plan → gather → gate → draft → evaluate → revise loop (DEEP) + human sign-off
   "due-diligence-engine": {
     nodes: [
       { id: "input-1", type: "input", config: { label: "Target Company" }, position: { x: 50, y: 320 }, locked: true },
@@ -446,7 +541,15 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
         },
         position: { x: 1300, y: 440 },
       },
-      { id: "output-1", type: "output", config: { label: "Investment Memo" }, position: { x: 1520, y: 320 }, locked: true },
+      {
+        id: "human-approval", type: "human_review",
+        config: {
+          label: "Partner Sign-off",
+          reviewType: "approval",
+        },
+        position: { x: 1500, y: 220 },
+      },
+      { id: "output-1", type: "output", config: { label: "Investment Memo" }, position: { x: 1700, y: 320 }, locked: true },
     ],
     edges: [
       { id: "e1", source: "input-1", target: "exec-planner" },
@@ -461,9 +564,10 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
       { id: "e10", source: "rag-company", target: "gate-research" },
       { id: "e11", source: "gate-research", target: "exec-memo" },
       { id: "e12", source: "exec-memo", target: "eval-quality" },
-      { id: "e13", source: "eval-quality", target: "output-1", sourceHandle: "pass" },
+      { id: "e13", source: "eval-quality", target: "human-approval", sourceHandle: "pass" },
       { id: "e14", source: "eval-quality", target: "gate-revision", sourceHandle: "fail" },
       { id: "e15", source: "gate-revision", target: "exec-memo" },
+      { id: "e16", source: "human-approval", target: "output-1" },
     ],
   },
 };

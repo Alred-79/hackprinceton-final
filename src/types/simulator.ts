@@ -13,9 +13,15 @@ export type SimNodeType =
   | "file_rw"
   | "context_gate"
   | "tool_rag"
-  | "fallback_router";
+  | "fallback_router"
+  | "code_exec"
+  | "api_call"
+  | "human_review"
+  | "mcp_server";
 
 export type ContextGateMode = "full_reset" | "structured_sendoff";
+export type HumanReviewType = "approval" | "edit" | "escalation";
+export type ServedToolType = "web_search" | "file_rw" | "tool_rag" | "code_exec" | "api_call";
 
 export interface NodeConfig {
   label: string;
@@ -30,6 +36,9 @@ export interface NodeConfig {
   handoffBrief?: string;
   kValue?: number;
   tools?: string[];
+  endpoint?: string;
+  reviewType?: HumanReviewType;
+  servedTools?: ServedToolType[];
 }
 
 export interface SimNode {

@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Trash2, Plus, X } from "lucide-react";
 import { toast } from "sonner";
-import type { ContextGateMode } from "@/types/simulator";
+import type { ContextGateMode, HumanReviewType, ServedToolType } from "@/types/simulator";
 
 export function InspectorPanel() {
   const selectedNodeId = useSimulatorStore((s) => s.selectedNodeId);
@@ -261,6 +261,82 @@ export function InspectorPanel() {
             placeholder='{"type": "object", "properties": {...}}'
             className="min-h-[60px] text-sm resize-y font-mono"
           />
+        </div>
+      )}
+
+      {/* API Call config */}
+      {node.type === "api_call" && (
+        <div className="space-y-1.5">
+          <Label className="text-xs">Endpoint Label</Label>
+          <Input
+            value={node.config.endpoint || ""}
+            onChange={(e) => updateNodeConfig(node.id, { endpoint: e.target.value })}
+            disabled={isEvaluating}
+            placeholder='e.g. "Stripe API", "Slack Webhook"'
+            className="h-8 text-sm"
+          />
+        </div>
+      )}
+
+      {/* Human Review config */}
+      {node.type === "human_review" && (
+        <div className="space-y-1.5">
+          <Label className="text-xs">Review Type</Label>
+          <Select
+            value={node.config.reviewType || "approval"}
+            onValueChange={(v) => updateNodeConfig(node.id, { reviewType: v as HumanReviewType })}
+            disabled={isEvaluating}
+          >
+            <SelectTrigger className="h-8 text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="approval">Approval (sign-off before proceeding)</SelectItem>
+              <SelectItem value="edit">Edit (human revises the output)</SelectItem>
+              <SelectItem value="escalation">Escalation (route to human specialist)</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-[10px] text-muted-foreground">
+            Adds 30s latency but +15% reliability for high-stakes paths
+          </p>
+        </div>
+      )}
+
+      {/* MCP Server config */}
+      {node.type === "mcp_server" && (
+        <div className="space-y-1.5">
+          <Label className="text-xs">Served Tools</Label>
+          <p className="text-[10px] text-muted-foreground mb-1">
+            Select which tool types this MCP server manages. 3+ tools gives a reliability bonus.
+          </p>
+          {(["web_search", "file_rw", "tool_rag", "code_exec", "api_call"] as ServedToolType[]).map((tool) => {
+            const served = node.config.servedTools || [];
+            const isChecked = served.includes(tool);
+            const toolLabels: Record<string, string> = {
+              web_search: "Web Search",
+              file_rw: "File R/W",
+              tool_rag: "Tool RAG",
+              code_exec: "Code Exec",
+              api_call: "API Call",
+            };
+            return (
+              <label key={tool} className="flex items-center gap-2 text-xs cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isChecked}
+                  disabled={isEvaluating}
+                  onChange={() => {
+                    const next = isChecked
+                      ? served.filter((t) => t !== tool)
+                      : [...served, tool];
+                    updateNodeConfig(node.id, { servedTools: next as ServedToolType[] });
+                  }}
+                  className="rounded border-border"
+                />
+                <span className="text-foreground">{toolLabels[tool]}</span>
+              </label>
+            );
+          })}
         </div>
       )}
     </div>
