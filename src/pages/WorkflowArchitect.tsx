@@ -100,7 +100,7 @@ export default function WorkflowArchitect() {
             </h1>
           </div>
           <span className="text-xs text-muted-foreground">
-            Describe a task. Get the optimal agent architecture.
+            Describe any task. Get the optimal agent architecture.
           </span>
         </div>
       </div>
