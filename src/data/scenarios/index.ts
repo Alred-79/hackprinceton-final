@@ -1,5 +1,6 @@
 import { bloatedSwarm } from "./bloated-swarm";
 import { mcpMigration } from "./mcp-migration";
+import { threatAnalyst } from "./threat-analyst";
 import type { Scenario } from "@/types/simulator";
 
 const goldPlater: Scenario = {
@@ -291,6 +292,7 @@ export const ALL_SCENARIOS: Scenario[] = [
   mcpMigration,
   opsCenter,
   dueDiligenceEngine,
+  threatAnalyst,
 ];
 
 export function getScenarioById(id: string): Scenario | undefined {

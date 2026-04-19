@@ -19,6 +19,22 @@ const INCIDENT_REPORT_SCHEMA = JSON.stringify({
   required: ["severity", "title", "affected_systems", "root_cause", "mitigation_steps"],
 }, null, 2);
 
+const THREAT_BRIEF_SCHEMA = JSON.stringify({
+  type: "object",
+  properties: {
+    threat_id: { type: "string" },
+    severity: { type: "string", enum: ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"] },
+    title: { type: "string" },
+    indicators: { type: "array", items: { type: "string" } },
+    affected_assets: { type: "array", items: { type: "string" } },
+    attack_vector: { type: "string" },
+    recommended_actions: { type: "array", items: { type: "string" } },
+    confidence: { type: "string", enum: ["high", "medium", "low"] },
+    data_gaps: { type: "array", items: { type: "string" } },
+  },
+  required: ["severity", "title", "indicators", "attack_vector", "recommended_actions", "confidence"],
+}, null, 2);
+
 const INVESTMENT_MEMO_SCHEMA = JSON.stringify({
   type: "object",
   properties: {
@@ -548,6 +564,133 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
       { id: "e14", source: "eval-quality", target: "gate-revision", sourceHandle: "fail" },
       { id: "e15", source: "gate-revision", target: "exec-memo" },
       { id: "e16", source: "human-approval", target: "output-1" },
+    ],
+  },
+
+  // === THREAT ANALYST — Showcase: MCP consolidation + error handling + context management + eval loop + human review + event streaming ===
+  "threat-analyst": {
+    nodes: [
+      { id: "input-1", type: "input", config: { label: "Threat Indicators" }, position: { x: 50, y: 320 }, locked: true },
+      {
+        id: "mcp-intel", type: "mcp_server",
+        config: {
+          label: "Intel MCP",
+          servedTools: ["web_search", "tool_rag", "api_call"],
+        },
+        position: { x: 280, y: 120 },
+      },
+      { id: "file-feed", type: "file_rw", config: { label: "Threat Feed" }, position: { x: 280, y: 320 } },
+      { id: "code-ioc", type: "code_exec", config: { label: "IOC Sandbox" }, position: { x: 280, y: 520 } },
+      { id: "fallback-feed", type: "fallback_router", config: { label: "Feed Check" }, position: { x: 480, y: 320 } },
+      {
+        id: "exec-gap-noter", type: "executor",
+        config: {
+          label: "Gap Noter",
+          model: "gpt-4o-mini",
+          systemPrompt: "Threat feed ingestion failed or returned corrupted indicator data. Flag exactly which feeds were unavailable, what IOC types are missing (IPs, domains, hashes), the risk this gap creates for threat assessment, and recommended workarounds (manual feed check, alternative sources, STIX/TAXII fallback). Do NOT fabricate indicators.",
+        },
+        position: { x: 480, y: 520 },
+      },
+      {
+        id: "gate-filter", type: "context_gate",
+        config: {
+          label: "Intel Filter",
+          contextGateMode: "structured_sendoff",
+          handoffBrief: "Extract ONLY: confirmed IOCs (IPs, domains, hashes with source attribution), OSINT key findings, threat feed matches, sandbox analysis results, and gap noter warnings if feeds failed. Discard: raw HTML from OSINT searches, full feed dumps, duplicate indicators, irrelevant RAG chunks, and verbose code output.",
+        },
+        position: { x: 700, y: 320 },
+      },
+      {
+        id: "router-severity", type: "router",
+        config: {
+          label: "Severity Classifier",
+          model: "gemini-flash",
+          routingPrompt: "Based on the filtered intelligence, classify threat severity:\n- 'Critical': active exploitation, zero-day, APT indicators, multiple confirmed IOCs, infrastructure targeting\n- 'Standard': known signatures, low-confidence singles, informational indicators, reconnaissance activity\n\nConsider: IOC confidence level, attack sophistication, asset exposure, active vs historical. Respond with one word.",
+          routes: ["Critical", "Standard"],
+        },
+        position: { x: 900, y: 320 },
+      },
+      {
+        id: "exec-critical", type: "executor",
+        config: {
+          label: "Critical Analyst",
+          model: "gpt-4o",
+          systemPrompt: "You are a senior threat intelligence analyst writing a CRITICAL severity threat brief following the output schema exactly. Every claim must cite specific IOCs with source attribution. Assess attack vector, map to MITRE ATT&CK if possible, list affected assets, and provide prioritized response actions. If feed data was unavailable, add explicit caveats about reduced confidence. Be decisive and actionable — SOC analysts need to act on this NOW.",
+          outputSchema: THREAT_BRIEF_SCHEMA,
+        },
+        position: { x: 1120, y: 180 },
+      },
+      {
+        id: "exec-standard", type: "executor",
+        config: {
+          label: "Standard Analyst",
+          model: "gpt-4o-mini",
+          systemPrompt: "You are a threat intelligence analyst writing a standard-severity threat brief. Summarize the indicators, assess likely attack vector, note if indicators match known campaigns, and provide monitoring recommendations. Keep it concise — this is informational, not urgent.",
+        },
+        position: { x: 1120, y: 460 },
+      },
+      {
+        id: "eval-quality", type: "evaluator",
+        config: {
+          label: "Brief Quality Check",
+          model: "gpt-4o-mini",
+          evaluationPrompt: "Review the threat intelligence brief for analytical rigor. Are IOCs cited with sources? Is the attack vector assessment specific (not generic)? Are recommended actions prioritized and actionable? If data gaps exist, are caveats present?",
+          passFailCriteria: "PASS if: IOCs sourced, attack vector specific, actions actionable, caveats for missing data present, confidence level appropriate. FAIL if: unsourced claims, generic 'monitor and investigate', missing gap caveats, or confidence contradicts evidence.",
+        },
+        position: { x: 1340, y: 320 },
+      },
+      {
+        id: "gate-revision", type: "context_gate",
+        config: {
+          label: "Revision Gate",
+          contextGateMode: "structured_sendoff",
+          handoffBrief: "Strip the previous brief draft entirely. Pass ONLY: evaluator feedback (what failed and why) and the original filtered intelligence brief from Gate #1. The analyst starts fresh with guidance, not patching the old draft. This prevents context pollution across revision iterations.",
+        },
+        position: { x: 1340, y: 520 },
+      },
+      {
+        id: "human-review", type: "human_review",
+        config: {
+          label: "Analyst Sign-off",
+          reviewType: "approval",
+        },
+        position: { x: 1540, y: 250 },
+      },
+      {
+        id: "event-alert", type: "event_stream",
+        config: { label: "Alert Dispatch" },
+        position: { x: 1720, y: 320 },
+      },
+      { id: "output-1", type: "output", config: { label: "Threat Brief" }, position: { x: 1900, y: 320 }, locked: true },
+    ],
+    edges: [
+      // Parallel intelligence gathering
+      { id: "e1", source: "input-1", target: "mcp-intel" },
+      { id: "e2", source: "input-1", target: "file-feed" },
+      { id: "e3", source: "input-1", target: "code-ioc" },
+      // Error handling on threat feed
+      { id: "e4", source: "file-feed", target: "fallback-feed" },
+      { id: "e5", source: "fallback-feed", target: "gate-filter", sourceHandle: "success" },
+      { id: "e6", source: "fallback-feed", target: "exec-gap-noter", sourceHandle: "failure" },
+      { id: "e7", source: "exec-gap-noter", target: "gate-filter" },
+      // Merge into context filter
+      { id: "e8", source: "mcp-intel", target: "gate-filter" },
+      { id: "e9", source: "code-ioc", target: "gate-filter" },
+      // Triage
+      { id: "e10", source: "gate-filter", target: "router-severity" },
+      // Severity routing
+      { id: "e11", source: "router-severity", target: "exec-critical", sourceHandle: "route-0" },
+      { id: "e12", source: "router-severity", target: "exec-standard", sourceHandle: "route-1" },
+      // Quality check
+      { id: "e13", source: "exec-critical", target: "eval-quality" },
+      { id: "e14", source: "exec-standard", target: "eval-quality" },
+      // Eval loop
+      { id: "e15", source: "eval-quality", target: "human-review", sourceHandle: "pass" },
+      { id: "e16", source: "eval-quality", target: "gate-revision", sourceHandle: "fail" },
+      { id: "e17", source: "gate-revision", target: "exec-critical" },
+      // Human gate + alert dispatch
+      { id: "e18", source: "human-review", target: "event-alert" },
+      { id: "e19", source: "event-alert", target: "output-1" },
     ],
   },
 };

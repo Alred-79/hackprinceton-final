@@ -18,6 +18,7 @@ import {
   Webhook,
   UserCheck,
   Server,
+  Radio,
 } from "lucide-react";
 import type { SimNodeType } from "@/types/simulator";
 import { NODE_TYPE_META } from "@/data/nodeTypes";
@@ -26,7 +27,7 @@ import { useSimulatorStore } from "@/store/simulatorStore";
 import { cn } from "@/lib/utils";
 
 const ICON_MAP: Record<string, React.FC<{ className?: string }>> = {
-  LogIn, LogOut, Brain, CheckCircle, GitBranch, Globe, FileText, Filter, Database, Shield, Terminal, Webhook, UserCheck, Server,
+  LogIn, LogOut, Brain, CheckCircle, GitBranch, Globe, FileText, Filter, Database, Shield, Terminal, Webhook, UserCheck, Server, Radio,
 };
 
 interface SimNodeData {
@@ -105,6 +106,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   "node-fallback": "239, 68, 68",
   "node-human": "217, 119, 6",
   "node-mcp": "99, 102, 241",
+  "node-stream": "16, 185, 129",
 };
 
 function SimulatorNodeComponent({ id, data, selected }: SimNodeProps) {
@@ -132,6 +134,7 @@ function SimulatorNodeComponent({ id, data, selected }: SimNodeProps) {
     "node-fallback": "border-red-500/60 bg-red-950/60",
     "node-human": "border-yellow-600/60 bg-yellow-950/60",
     "node-mcp": "border-indigo-500/60 bg-indigo-950/60",
+    "node-stream": "border-emerald-500/60 bg-emerald-950/60",
   };
 
   const iconColors: Record<string, string> = {
@@ -145,6 +148,7 @@ function SimulatorNodeComponent({ id, data, selected }: SimNodeProps) {
     "node-fallback": "text-red-400",
     "node-human": "text-yellow-500",
     "node-mcp": "text-indigo-400",
+    "node-stream": "text-emerald-400",
   };
 
   const showContextWarning = data.simNodeType === "context_gate" && !data.contextGateMode;

@@ -17,7 +17,8 @@ export type SimNodeType =
   | "code_exec"
   | "api_call"
   | "human_review"
-  | "mcp_server";
+  | "mcp_server"
+  | "event_stream";
 
 export type ContextGateMode = "full_reset" | "structured_sendoff";
 export type HumanReviewType = "approval" | "edit" | "escalation";

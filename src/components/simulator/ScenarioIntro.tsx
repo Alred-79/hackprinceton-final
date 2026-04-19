@@ -141,6 +141,26 @@ const SCENARIO_INTROS: Record<string, IntroContent> = {
     proTip:
       "Two context gates, two different purposes. Gate #1 filters noisy data. Gate #2 manages iteration hygiene. If you only place one, think about which problem is worse: noisy input or bloating loops.",
   },
+  "threat-analyst": {
+    tagline: "Last week it auto-published a false positive. You're fixing this.",
+    flavor:
+      "Someone built a SOC threat intelligence pipeline with the philosophy 'one tool, one MCP server.' The result: 5 MCP servers each wrapping a single tool, 4 Claude Opus executors running sequentially, no quality gate, no error handling on the threat feed, and critical alerts going straight to output without a human ever seeing them. Last Tuesday at 3 AM, it auto-published a 'CRITICAL' threat brief about an active zero-day -- that turned out to be a misconfigured honeypot. The CISO is not amused.",
+    situation:
+      "You see a messy graph: 5 single-tool MCP servers, 4 Claude Opus executors chained sequentially, and a direct pipe to output. Every node is bleeding money, there's no quality check, the threat feed has no error handling, and critical alerts bypass human review entirely.",
+    objective:
+      "Consolidate MCPs by domain (3+ tools = bonus). Right-size models. Add a Fallback Router on the unreliable threat feed. Filter noisy intel through a Context Gate. Route by severity (Critical/Standard). Add an Evaluator with a revision loop (+ its own Context Gate for hygiene). Gate critical alerts through Human Review. Dispatch via Event Stream.",
+    toolTips: [
+      "Delete the 5 single-tool MCPs -- create 1 Intel MCP with web_search + tool_rag + api_call (3 tools = bonus)",
+      "Keep file_rw and code_exec as standalone tools (they serve specific pipeline stages)",
+      "Add a Fallback Router right after the threat feed to catch corrupted data",
+      "Use a Context Gate (structured sendoff) to filter raw OSINT/feed/RAG noise before severity routing",
+      "Route by severity: 'Critical' triggers gpt-4o + output schema + Human Review. 'Standard' uses gpt-4o-mini",
+      "The Evaluator's fail path needs a Revision Gate to strip old drafts before looping back",
+      "Event Stream dispatches alerts asynchronously -- faster than blocking API calls",
+    ],
+    proTip:
+      "This scenario exercises EVERY major feature: MCP consolidation, model right-sizing, fallback routing, context gates (x2), eval loops, output schemas, human review, severity routing, and event streaming. The broken graph has 5+ penalties. The optimal graph lights up 6+ bonuses. That's the demo.",
+  },
 };
 
 interface ScenarioIntroProps {

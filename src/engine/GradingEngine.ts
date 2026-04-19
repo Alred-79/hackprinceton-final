@@ -38,6 +38,7 @@ export function computeDeterministicResults(
     if (n.type === "tool_rag") totalCost += 0.2;
     if (n.type === "code_exec") totalCost += 0.15;
     if (n.type === "api_call") totalCost += 0.08;
+    if (n.type === "event_stream") totalCost += 0.12;
     if (n.type === "human_review") totalCost += 0; // free
     if (n.type === "mcp_server") {
       totalCost += 0.30; // coordination overhead
@@ -67,6 +68,7 @@ export function computeDeterministicResults(
     if (n.type === "tool_rag") return 1.0;
     if (n.type === "code_exec") return 1.5;
     if (n.type === "api_call") return 0.8;
+    if (n.type === "event_stream") return 0.3;
     if (n.type === "human_review") return 30.0; // human wait time
     if (n.type === "mcp_server") {
       // coordination hop + max served tool latency

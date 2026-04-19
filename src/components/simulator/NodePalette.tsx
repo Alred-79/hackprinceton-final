@@ -1,12 +1,12 @@
 import { NODE_TYPE_META } from "@/data/nodeTypes";
 import { useSimulatorStore } from "@/store/simulatorStore";
-import { Brain, CheckCircle, GitBranch, Globe, FileText, Filter, Database, Shield, GripVertical, Terminal, Webhook, UserCheck, Server } from "lucide-react";
+import { Brain, CheckCircle, GitBranch, Globe, FileText, Filter, Database, Shield, GripVertical, Terminal, Webhook, UserCheck, Server, Radio } from "lucide-react";
 import type { SimNodeType } from "@/types/simulator";
 import { cn } from "@/lib/utils";
 import { vibrateTap } from "@/lib/vibrate";
 
 const ICON_MAP: Record<string, React.FC<{ className?: string }>> = {
-  Brain, CheckCircle, GitBranch, Globe, FileText, Filter, Database, Shield, Terminal, Webhook, UserCheck, Server,
+  Brain, CheckCircle, GitBranch, Globe, FileText, Filter, Database, Shield, Terminal, Webhook, UserCheck, Server, Radio,
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
