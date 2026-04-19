@@ -1,7 +1,7 @@
 import { ALL_SCENARIOS } from "@/data/scenarios";
 import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
-import { ArrowRight, Wrench, PencilRuler, Trophy, Zap } from "lucide-react";
+import { ArrowRight, Wrench, PencilRuler, Trophy, Zap, Wand2 } from "lucide-react";
 import type { ProgressStatus, ScenarioDifficulty } from "@/types/simulator";
 import { cn } from "@/lib/utils";
 
@@ -52,6 +52,14 @@ export default function ScenarioSelect() {
             Master agent architecture by fixing broken systems and designing optimal solutions.
             Each scenario teaches key principles of multi-agent design.
           </p>
+          <button
+            onClick={() => navigate("/architect")}
+            className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary/10 border border-primary/20 text-primary hover:bg-primary/20 transition-colors text-sm font-medium"
+          >
+            <Wand2 className="h-4 w-4" />
+            Workflow Architect
+            <span className="text-muted-foreground text-xs">— Paste a task, get the optimal architecture</span>
+          </button>
         </div>
 
         {/* Scenario categories */}

@@ -1,5 +1,6 @@
 import ScenarioSelect from "./pages/ScenarioSelect";
 import Simulator from "./pages/Simulator";
+import WorkflowArchitect from "./pages/WorkflowArchitect";
 import NotFound from "./pages/NotFound";
 
 export const routers = [
@@ -12,6 +13,11 @@ export const routers = [
       path: "/simulator/:scenarioId",
       name: 'simulator',
       element: <Simulator />,
+    },
+    {
+      path: "/architect",
+      name: 'architect',
+      element: <WorkflowArchitect />,
     },
     /* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */
     {
