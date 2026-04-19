@@ -58,7 +58,7 @@ export default function ScenarioSelect() {
           >
             <Wand2 className="h-4 w-4" />
             Workflow Architect
-            <span className="text-muted-foreground text-xs">— Paste a task, get the optimal architecture</span>
+            <span className="text-muted-foreground text-xs">— Paste your own prompt, get the optimal architecture</span>
           </button>
         </div>
 
