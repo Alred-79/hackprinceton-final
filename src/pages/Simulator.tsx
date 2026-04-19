@@ -8,6 +8,7 @@ import { NodePalette } from "@/components/simulator/NodePalette";
 import { InspectorPanel } from "@/components/simulator/InspectorPanel";
 import { ResultsPanel } from "@/components/simulator/ResultsPanel";
 import { Editorial } from "@/components/simulator/Editorial";
+import { ScenarioIntro } from "@/components/simulator/ScenarioIntro";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ArrowLeft, BookOpen, Settings, BarChart3, Blocks } from "lucide-react";
@@ -22,12 +23,14 @@ export default function Simulator() {
   const setActiveRightTab = useSimulatorStore((s) => s.setActiveRightTab);
   const attempts = useSimulatorStore((s) => s.attempts);
   const [showEditorial, setShowEditorial] = useState(false);
+  const [showIntro, setShowIntro] = useState(true);
 
   useEffect(() => {
     if (!scenarioId) return;
     const scenario = getScenarioById(scenarioId);
     if (scenario) {
       loadScenario(scenario);
+      setShowIntro(true);
     } else {
       navigate("/");
     }
@@ -141,6 +144,14 @@ export default function Simulator() {
           </ScrollArea>
         </div>
       </div>
+
+      {/* Scenario intro popup */}
+      {showIntro && currentScenario && (
+        <ScenarioIntro
+          scenario={currentScenario}
+          onDismiss={() => setShowIntro(false)}
+        />
+      )}
 
       {/* Editorial modal */}
       {showEditorial && <Editorial onClose={() => setShowEditorial(false)} />}
