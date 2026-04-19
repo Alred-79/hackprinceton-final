@@ -72,6 +72,8 @@ function buildFlowNodes(simNodes: SimNode[], simEdges: SimEdge[], selectedNodeId
       contextGateMode: n.config.contextGateMode,
       isDisconnected: disconnected.includes(n.id),
       costRatio: costRatios.get(n.id) ?? 0,
+      hasOutputSchema: !!n.config.outputSchema,
+      hasHandoffBrief: n.type === "context_gate" && !!n.config.handoffBrief,
     },
   }));
 }

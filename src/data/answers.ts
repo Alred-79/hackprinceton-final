@@ -35,6 +35,32 @@ const THREAT_BRIEF_SCHEMA = JSON.stringify({
   required: ["severity", "title", "indicators", "attack_vector", "recommended_actions", "confidence"],
 }, null, 2);
 
+const STANDARD_BRIEF_SCHEMA = JSON.stringify({
+  type: "object",
+  properties: {
+    severity: { type: "string", enum: ["HIGH", "MEDIUM", "LOW", "INFO"] },
+    title: { type: "string" },
+    indicators: { type: "array", items: { type: "string" } },
+    attack_vector: { type: "string" },
+    campaign_match: { type: "string" },
+    recommended_actions: { type: "array", items: { type: "string" } },
+    confidence: { type: "string", enum: ["high", "medium", "low"] },
+  },
+  required: ["severity", "title", "indicators", "attack_vector", "recommended_actions", "confidence"],
+}, null, 2);
+
+const GAP_REPORT_SCHEMA = JSON.stringify({
+  type: "object",
+  properties: {
+    missing_feeds: { type: "array", items: { type: "string" } },
+    missing_ioc_types: { type: "array", items: { type: "string" } },
+    risk_assessment: { type: "string" },
+    confidence_impact: { type: "string" },
+    recommended_workarounds: { type: "array", items: { type: "string" } },
+  },
+  required: ["missing_feeds", "risk_assessment", "confidence_impact"],
+}, null, 2);
+
 const INVESTMENT_MEMO_SCHEMA = JSON.stringify({
   type: "object",
   properties: {
@@ -588,6 +614,7 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
           label: "Gap Noter",
           model: "gpt-4o-mini",
           systemPrompt: "Threat feed ingestion failed or returned corrupted indicator data. Flag exactly which feeds were unavailable, what IOC types are missing (IPs, domains, hashes), the risk this gap creates for threat assessment, and recommended workarounds (manual feed check, alternative sources, STIX/TAXII fallback). Do NOT fabricate indicators.",
+          outputSchema: GAP_REPORT_SCHEMA,
         },
         position: { x: 480, y: 520 },
       },
@@ -626,6 +653,7 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
           label: "Standard Analyst",
           model: "gpt-4o-mini",
           systemPrompt: "You are a threat intelligence analyst writing a standard-severity threat brief. Summarize the indicators, assess likely attack vector, note if indicators match known campaigns, and provide monitoring recommendations. Keep it concise — this is informational, not urgent.",
+          outputSchema: STANDARD_BRIEF_SCHEMA,
         },
         position: { x: 1120, y: 460 },
       },

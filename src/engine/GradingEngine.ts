@@ -191,6 +191,18 @@ export function computeDeterministicResults(
     }
   });
 
+  // Schema chain bonus — full pipeline contract coverage
+  const allExecutors = nodes.filter((n) => n.type === "executor");
+  const contractedExecutors = allExecutors.filter((n) => {
+    try { return !!n.config.outputSchema?.trim() && JSON.parse(n.config.outputSchema); }
+    catch { return false; }
+  });
+  let schemaChainBonus = 0;
+  if (allExecutors.length >= 2 && contractedExecutors.length === allExecutors.length) {
+    schemaChainBonus = 8;
+    bonuses.push({ label: "Schema Chain: every executor is contract-bound", value: schemaChainBonus });
+  }
+
   // Chained executors without gate
   const chainLength = countChainedExecutorsWithoutGate(nodes, edges);
   if (chainLength >= 4) {
@@ -267,7 +279,7 @@ export function computeDeterministicResults(
     const served = (mcp.config.servedTools || []).length;
     return sum + (served >= 3 ? 5 : 0);
   }, 0);
-  reliability += evalBonus + gateBonus + schemaBonus + humanBonus + mcpBonus;
+  reliability += evalBonus + gateBonus + schemaBonus + schemaChainBonus + humanBonus + mcpBonus;
   reliability = Math.max(0, Math.min(100, reliability));
 
   // Model reliability contribution

@@ -19,6 +19,7 @@ import {
   UserCheck,
   Server,
   Radio,
+  Braces,
 } from "lucide-react";
 import type { SimNodeType } from "@/types/simulator";
 import { NODE_TYPE_META } from "@/data/nodeTypes";
@@ -41,6 +42,8 @@ interface SimNodeData {
   isRunning?: boolean;
   optimizationScore?: number;
   costRatio?: number; // 0–1, 0 = cheapest, 1 = most expensive
+  hasOutputSchema?: boolean;
+  hasHandoffBrief?: boolean;
 }
 
 type SimNodeProps = NodeProps & { data: SimNodeData };
@@ -317,6 +320,12 @@ function SimulatorNodeComponent({ id, data, selected }: SimNodeProps) {
         {data.locked && <Lock className="h-3 w-3 text-muted-foreground shrink-0" />}
         {data.isDisconnected && <AlertTriangle className="h-3 w-3 text-amber-400 shrink-0" />}
         {showContextWarning && <AlertTriangle className="h-3 w-3 text-orange-400 shrink-0" />}
+        {data.hasOutputSchema && (
+          <Braces className="h-2.5 w-2.5 text-cyan-400/70 shrink-0" title="Output schema defined" />
+        )}
+        {data.hasHandoffBrief && (
+          <FileText className="h-2.5 w-2.5 text-violet-400/70 shrink-0" title="Handoff brief defined" />
+        )}
       </div>
 
       {/* Bottom elevation bar — thicker = more 3D depth */}
