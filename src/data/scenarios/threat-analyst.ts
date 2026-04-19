@@ -17,21 +17,21 @@ export const threatAnalyst: Scenario = {
     "mcp_server", "kafka_stream",
   ],
   initialNodes: [
-    { id: "input-1", type: "input", config: { label: "Threat Indicators" }, position: { x: 50, y: 300 }, locked: true },
+    { id: "input-1", type: "input", config: { label: "Threat Indicators" }, position: { x: 50, y: 420 }, locked: true },
     {
       id: "mcp-osint", type: "mcp_server",
       config: { label: "OSINT MCP", servedTools: ["web_search"] },
-      position: { x: 220, y: 140 },
+      position: { x: 260, y: 120 },
     },
     {
       id: "mcp-feed", type: "mcp_server",
       config: { label: "Feed MCP", servedTools: ["file_rw"] },
-      position: { x: 220, y: 300 },
+      position: { x: 260, y: 420 },
     },
     {
       id: "mcp-intel", type: "mcp_server",
       config: { label: "Intel MCP", servedTools: ["tool_rag"] },
-      position: { x: 220, y: 460 },
+      position: { x: 260, y: 720 },
     },
     {
       id: "exec-enricher", type: "executor",
@@ -40,7 +40,7 @@ export const threatAnalyst: Scenario = {
         model: "claude-opus",
         systemPrompt: "",
       },
-      position: { x: 450, y: 140 },
+      position: { x: 520, y: 120 },
     },
     {
       id: "exec-correlator", type: "executor",
@@ -49,12 +49,12 @@ export const threatAnalyst: Scenario = {
         model: "claude-opus",
         systemPrompt: "",
       },
-      position: { x: 450, y: 300 },
+      position: { x: 520, y: 420 },
     },
     {
       id: "mcp-sandbox", type: "mcp_server",
       config: { label: "Sandbox MCP", servedTools: ["code_exec"] },
-      position: { x: 450, y: 460 },
+      position: { x: 520, y: 720 },
     },
     {
       id: "exec-analyst", type: "executor",
@@ -63,12 +63,12 @@ export const threatAnalyst: Scenario = {
         model: "claude-opus",
         systemPrompt: "",
       },
-      position: { x: 680, y: 300 },
+      position: { x: 780, y: 270 },
     },
     {
       id: "mcp-alert", type: "mcp_server",
       config: { label: "Alert MCP", servedTools: ["api_call"] },
-      position: { x: 680, y: 460 },
+      position: { x: 780, y: 570 },
     },
     {
       id: "exec-reporter", type: "executor",
@@ -77,9 +77,9 @@ export const threatAnalyst: Scenario = {
         model: "claude-opus",
         systemPrompt: "",
       },
-      position: { x: 900, y: 300 },
+      position: { x: 1040, y: 270 },
     },
-    { id: "output-1", type: "output", config: { label: "Threat Brief" }, position: { x: 1120, y: 300 }, locked: true },
+    { id: "output-1", type: "output", config: { label: "Threat Brief" }, position: { x: 1300, y: 270 }, locked: true },
   ],
   initialEdges: [
     { id: "e1", source: "input-1", target: "mcp-osint" },

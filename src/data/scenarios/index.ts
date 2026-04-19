@@ -15,11 +15,11 @@ const goldPlater: Scenario = {
   availableNodeTypes: ["input", "output", "executor", "evaluator", "router", "context_gate"],
   initialNodes: [
     { id: "input-1", type: "input", config: { label: "Task Input" }, position: { x: 50, y: 250 }, locked: true },
-    { id: "exec-1", type: "executor", config: { label: "Classifier", model: "o1-preview", systemPrompt: "" }, position: { x: 250, y: 250 } },
-    { id: "exec-2", type: "executor", config: { label: "Formatter", model: "o1-preview", systemPrompt: "" }, position: { x: 450, y: 150 } },
-    { id: "exec-3", type: "executor", config: { label: "Analyzer", model: "o1-preview", systemPrompt: "" }, position: { x: 450, y: 350 } },
-    { id: "eval-1", type: "evaluator", config: { label: "Quality Check", model: "o1-preview", evaluationPrompt: "", passFailCriteria: "" }, position: { x: 650, y: 250 } },
-    { id: "output-1", type: "output", config: { label: "Result" }, position: { x: 850, y: 250 }, locked: true },
+    { id: "exec-1", type: "executor", config: { label: "Classifier", model: "o1-preview", systemPrompt: "" }, position: { x: 280, y: 250 } },
+    { id: "exec-2", type: "executor", config: { label: "Formatter", model: "o1-preview", systemPrompt: "" }, position: { x: 520, y: 60 } },
+    { id: "exec-3", type: "executor", config: { label: "Analyzer", model: "o1-preview", systemPrompt: "" }, position: { x: 520, y: 440 } },
+    { id: "eval-1", type: "evaluator", config: { label: "Quality Check", model: "o1-preview", evaluationPrompt: "", passFailCriteria: "" }, position: { x: 760, y: 250 } },
+    { id: "output-1", type: "output", config: { label: "Result" }, position: { x: 1000, y: 250 }, locked: true },
   ],
   initialEdges: [
     { id: "e1", source: "input-1", target: "exec-1" },

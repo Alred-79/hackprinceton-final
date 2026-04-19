@@ -16,7 +16,7 @@ export const mcpMigration: Scenario = {
     "context_gate",
   ],
   initialNodes: [
-    { id: "input-1", type: "input", config: { label: "Data Request" }, position: { x: 50, y: 300 }, locked: true },
+    { id: "input-1", type: "input", config: { label: "Data Request" }, position: { x: 60, y: 300 }, locked: true },
     {
       id: "exec-bloated", type: "executor",
       config: {
