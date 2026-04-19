@@ -150,16 +150,15 @@ const SCENARIO_INTROS: Record<string, IntroContent> = {
     objective:
       "Consolidate MCPs by domain, right-size models, add error handling, and implement a severity-based routing system with human-in-the-loop for critical alerts.",
     toolTips: [
-      "Delete the 5 single-tool MCPs -- create 1 Intel MCP with web_search + tool_rag + api_call (3 tools = bonus)",
-      "Keep file_rw and code_exec as standalone tools (they serve specific pipeline stages)",
-      "Add a Fallback Router right after the threat feed to catch corrupted data",
-      "Use a Context Gate (structured sendoff) to filter raw OSINT/feed/RAG noise before severity routing",
-      "Route by severity: 'Critical' triggers gpt-4o + output schema + Human Review. 'Standard' uses gpt-4o-mini",
-      "The Evaluator's fail path needs a Revision Gate to strip old drafts before looping back",
-      "Kafka Stream dispatches alerts asynchronously -- faster than blocking API calls",
+      "Consolidate 5 single-tool MCPs into 1 Intel MCP (3+ tools = bonus)",
+      "Add a Fallback Router after the threat feed to catch corrupted data",
+      "Use a Context Gate to filter noise before severity routing",
+      "Route by severity: 'Critical' (gpt-4o + schema + Human Review) vs 'Standard' (gpt-4o-mini)",
+      "Add an Evaluator with a Revision Gate to strip old drafts before looping back",
+      "Dispatch alerts via Kafka Stream for asynchronous performance",
     ],
     proTip:
-      "This scenario exercises EVERY major feature: MCP consolidation, model right-sizing, fallback routing, context gates (x2), eval loops, output schemas, human review, severity routing, and Kafka streaming. The broken graph has 5+ penalties. The optimal graph lights up 6+ bonuses. That's the demo.",
+      "This scenario exercises every major feature: MCP consolidation, model right-sizing, fallback routing, context gates, eval loops, output schemas, human review, and Kafka streaming. The broken graph has 5+ penalties; the optimal graph lights up 6+ bonuses.",
   },
 };
 
