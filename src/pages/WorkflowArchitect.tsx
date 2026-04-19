@@ -13,34 +13,34 @@ import WorkflowResult from "@/components/architect/WorkflowResult";
 
 const TEMPLATES = [
   {
-    id: "customer-support",
-    title: "Customer Support Agent",
+    id: "market-intel",
+    title: "Live Competitor Intel Feed",
     prompt:
-      "Build an AI customer support system that handles incoming tickets. It should classify ticket urgency, route technical issues to a code-aware agent, billing issues to an account specialist, and general inquiries to a FAQ lookup. Critical issues need human escalation. The system should ...",
+      "My company [YOUR_COMPANY] sells [YOUR_PRODUCT]. Every morning: stream the latest news about our top 3 competitors from the web, hit their pricing APIs to detect changes, cross-reference with our Postgres CRM for deals we lost last month, run sentiment analysis on anything flagged, and push a [bullet-point Slack digest / full PDF brief] before 9am. If a competitor drops pricing by more than 10%, page the sales lead immediately and skip the digest.",
   },
   {
-    id: "research-assistant",
-    title: "Research & Report Writer",
+    id: "bug-triage",
+    title: "Sentry → Incident Report Bot",
     prompt:
-      "Create an AI research assistant that takes a topic, searches the web and internal knowledge bases for relevant information, synthesizes findings into a structured report with citations, fact-checks key claims, and produces a final document in a specified format. The research domain is ...",
+      "I'm an engineer at [YOUR_COMPANY]. When a Sentry alert fires for our [YOUR_SERVICE] service: fetch the stack trace, search our GitHub repo for the relevant files, query Postgres for impacted users in the last hour, check our internal Confluence knowledge base for prior incidents, then draft a [Slack war-room message / full PagerDuty incident report] with a root-cause hypothesis and a suggested fix. Only page on-call if affected users > [YOUR_THRESHOLD].",
   },
   {
-    id: "code-review-pipeline",
-    title: "Code Review Pipeline",
+    id: "content-repurposer",
+    title: "Publish-Once, Repurpose Everywhere",
     prompt:
-      "Design an automated code review system that receives pull requests, runs static analysis, checks for security vulnerabilities, evaluates code style and best practices, generates improvement suggestions, and produces a summary review. The codebase is primarily ...",
+      "We publish [research papers / podcast transcripts / YouTube videos] about [YOUR_TOPIC]. When a new piece drops: search the web for trending discussions on this topic, pull our past content from the knowledge base for brand consistency, write [3 tweets + a LinkedIn post / a newsletter section / all of the above], fact-check any statistics against live sources, run it through a brand voice evaluator, and only publish if confidence score > 85%. Flag anything that contradicts what we said last quarter.",
   },
   {
-    id: "data-etl",
-    title: "Data ETL Orchestrator",
+    id: "order-pipeline",
+    title: "Kafka Order Processing Pipeline",
     prompt:
-      "Build an AI-powered ETL pipeline that ingests data from multiple APIs, validates and cleans the data, transforms it according to business rules, handles schema mismatches and missing fields gracefully, loads results into a database, and generates a quality report. The data sources include ...",
+      "We run an e-commerce platform for [YOUR_INDUSTRY]. Orders stream from Kafka at ~[YOUR_VOLUME] per minute. For each order: validate payment via our billing API, check real-time inventory in our warehouse DB, route [orders over $500 / all orders] through fraud scoring, apply [loyalty tier / promo code / geo-based] discount logic, execute the inventory reservation as a DB transaction, write the confirmed order back, and emit a fulfillment event — all under 2 seconds. Dead-letter anything that fails validation.",
   },
   {
-    id: "content-moderation",
-    title: "Content Moderation System",
+    id: "due-diligence",
+    title: "VC / BD Deal Research Bot",
     prompt:
-      "Create a content moderation pipeline for a social platform that screens text posts, images, and links. It should classify content by risk level, auto-approve safe content, flag borderline cases for human review, and immediately block policy violations. Categories include ...",
+      "I work in [VC / BD / product strategy] at [YOUR_FIRM]. Given a company name: search the web for recent funding rounds and press, scrape their job board to infer engineering priorities, pull SEC filings if they're public, check our internal deal notes database for prior contact, run a SWOT synthesis with citations, iterate the report once if web coverage feels thin, and output a [1-page tearsheet / full investment memo] — [include / exclude] a comparable comps table. Flag anything that looks like they're pivoting.",
   },
 ];
 
@@ -117,12 +117,12 @@ export default function WorkflowArchitect() {
               <textarea
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
-                placeholder="Build an AI agent that..."
+                placeholder={"Build an agent that streams from Kafka, queries Postgres, hits 3 external APIs, and only pages someone if confidence < 80%..."}
                 className="w-full h-48 rounded-lg bg-card border border-border p-3 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all"
               />
               <div className="flex items-center justify-between mt-2">
                 <span className="text-[11px] text-muted-foreground">
-                  {prompt.length} characters
+                  Replace <span className="font-mono text-primary/70">[YOUR_X]</span> in templates with your details
                 </span>
                 <button
                   onClick={handleAnalyze}
