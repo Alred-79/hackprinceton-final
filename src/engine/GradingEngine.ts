@@ -228,10 +228,9 @@ export function computeDeterministicResults(
       )
     );
     if (reachesOutput && hasHighStakesPath) {
-      bonuses.push({ label: `Human Review: ${hr.config.label} (high-stakes)`, value: 15 });
+      bonuses.push({ label: `Human Review: ${hr.config.label} (high-stakes sign-off)`, value: 15 });
     } else if (reachesOutput) {
-      penalties.push({ label: `Human Review: ${hr.config.label} (unnecessary bottleneck)`, value: -5 });
-      reliability -= 5;
+      bonuses.push({ label: `Human Review: ${hr.config.label} (quality gate)`, value: 5 });
     }
   });
 
@@ -259,7 +258,8 @@ export function computeDeterministicResults(
     const hasHighStakesPath = nodes.some((n) =>
       n.type === "router" && (n.config.routes || []).some((r) => /critical|urgent|p1|p2/i.test(r))
     );
-    return sum + (reachesOutput && hasHighStakesPath ? 15 : 0);
+    if (!reachesOutput) return sum;
+    return sum + (hasHighStakesPath ? 15 : 5);
   }, 0);
   const mcpBonus = mcpNodes.reduce((sum, mcp) => {
     const served = (mcp.config.servedTools || []).length;

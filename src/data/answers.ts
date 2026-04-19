@@ -290,22 +290,22 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
   // === MCP MIGRATION ===
   "mcp-migration": {
     nodes: [
-      { id: "input-1", type: "input", config: { label: "Data Request" }, position: { x: 50, y: 300 }, locked: true },
+      { id: "input-1", type: "input", config: { label: "Data Request" }, position: { x: 50, y: 240 }, locked: true },
       {
         id: "router-domain", type: "router",
         config: {
           label: "Domain Classifier",
           model: "gpt-4o-mini",
-          routingPrompt: "Classify the request into one domain:\n- 'Research': needs web search, knowledge base, or information lookup\n- 'Data': needs file operations, code execution, or data processing\n- 'Comms': needs to send messages, call APIs, or trigger external services\n\nRespond with one word.",
-          routes: ["Research", "Data", "Comms"],
+          routingPrompt: "Classify the request into one domain:\n- 'Research': needs web search, knowledge base lookups, or external API data retrieval\n- 'Data': needs file operations, code execution, or data processing\n\nRespond with one word.",
+          routes: ["Research", "Data"],
         },
-        position: { x: 260, y: 300 },
+        position: { x: 260, y: 240 },
       },
       {
         id: "mcp-research", type: "mcp_server",
         config: {
           label: "Research MCP",
-          servedTools: ["web_search", "tool_rag"],
+          servedTools: ["web_search", "tool_rag", "api_call"],
         },
         position: { x: 500, y: 120 },
       },
@@ -315,22 +315,14 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
           label: "Data MCP",
           servedTools: ["file_rw", "code_exec"],
         },
-        position: { x: 500, y: 300 },
-      },
-      {
-        id: "mcp-comms", type: "mcp_server",
-        config: {
-          label: "Comms MCP",
-          servedTools: ["api_call"],
-        },
-        position: { x: 500, y: 480 },
+        position: { x: 500, y: 360 },
       },
       {
         id: "exec-research", type: "executor",
         config: {
           label: "Research Agent",
           model: "gpt-4o",
-          systemPrompt: "You are a research specialist. Use the data from the Research MCP server (web search results and RAG lookups) to answer research queries. Synthesize findings, cite sources, and provide structured summaries.",
+          systemPrompt: "You are a research specialist. Use the Research MCP server (web search, knowledge base, and external APIs) to answer research queries. Synthesize findings across all sources, cite where data came from, and provide structured summaries with clear confidence levels.",
         },
         position: { x: 740, y: 120 },
       },
@@ -339,43 +331,31 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
         config: {
           label: "Data Agent",
           model: "gpt-4o",
-          systemPrompt: "You are a data processing specialist. Use the data from the Data MCP server (file contents and code execution results) to process, analyze, and transform data. Output structured results with clear methodology.",
+          systemPrompt: "You are a data processing specialist. Use the Data MCP server (file contents and code execution) to process, analyze, and transform data. Output structured results with clear methodology, data lineage, and any anomalies found.",
         },
-        position: { x: 740, y: 300 },
-      },
-      {
-        id: "exec-comms", type: "executor",
-        config: {
-          label: "Comms Agent",
-          model: "gpt-4o-mini",
-          systemPrompt: "You are a communications specialist. Use the Comms MCP server (API calls) to send messages, trigger webhooks, or call external services. Confirm actions taken and report any errors.",
-        },
-        position: { x: 740, y: 480 },
+        position: { x: 740, y: 360 },
       },
       {
         id: "eval-quality", type: "evaluator",
         config: {
           label: "Quality Check",
           model: "gpt-4o-mini",
-          evaluationPrompt: "Review the output for completeness and accuracy. Does it address the original request? Is the data properly structured?",
-          passFailCriteria: "PASS if: request fully addressed, output is structured and accurate. FAIL if: incomplete, wrong domain, or errors in output.",
+          evaluationPrompt: "Review the output for completeness and accuracy. Does it address the original request? Is the data properly structured and sourced?",
+          passFailCriteria: "PASS if: request fully addressed, output is structured, sources cited, accurate. FAIL if: incomplete, wrong domain, unsourced claims, or errors in output.",
         },
-        position: { x: 960, y: 300 },
+        position: { x: 960, y: 240 },
       },
-      { id: "output-1", type: "output", config: { label: "Result" }, position: { x: 1180, y: 300 }, locked: true },
+      { id: "output-1", type: "output", config: { label: "Result" }, position: { x: 1180, y: 240 }, locked: true },
     ],
     edges: [
       { id: "e1", source: "input-1", target: "router-domain" },
       { id: "e2", source: "router-domain", target: "mcp-research", sourceHandle: "route-0" },
       { id: "e3", source: "router-domain", target: "mcp-data", sourceHandle: "route-1" },
-      { id: "e4", source: "router-domain", target: "mcp-comms", sourceHandle: "route-2" },
-      { id: "e5", source: "mcp-research", target: "exec-research" },
-      { id: "e6", source: "mcp-data", target: "exec-data" },
-      { id: "e7", source: "mcp-comms", target: "exec-comms" },
-      { id: "e8", source: "exec-research", target: "eval-quality" },
-      { id: "e9", source: "exec-data", target: "eval-quality" },
-      { id: "e10", source: "exec-comms", target: "eval-quality" },
-      { id: "e11", source: "eval-quality", target: "output-1", sourceHandle: "pass" },
+      { id: "e4", source: "mcp-research", target: "exec-research" },
+      { id: "e5", source: "mcp-data", target: "exec-data" },
+      { id: "e6", source: "exec-research", target: "eval-quality" },
+      { id: "e7", source: "exec-data", target: "eval-quality" },
+      { id: "e8", source: "eval-quality", target: "output-1", sourceHandle: "pass" },
     ],
   },
 
