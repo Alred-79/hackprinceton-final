@@ -1,5 +1,11 @@
 # reAgent
 
+TRY OUT THE PRODUCT HERE
+https://fb5ad316cb9a40f7ad869c1205a34a60.prod.enter.pro
+
+mechanistic interpretability experiments that powered the schema compliance agent-to-agent protocol: https://devpost.com/software/reagent
+
+
 reAgent is a visual sandbox for learning and designing multi-agent AI systems. The core idea is simple: before you spend money running a real pipeline, you should be able to draw it out, see what it costs, and understand why one architecture is better than another.
 
 We built this at HackPrinceton.
