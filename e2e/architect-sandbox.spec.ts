@@ -208,14 +208,13 @@ for (const width of [1440, 1024]) {
     const kind = visible!.compatibleKinds.split(" ")[0];
     const card = page.locator(`[data-policy-kind="${kind}"]`);
     const slot = page.locator(".architect-policy-slot").nth(visible!.index);
-    await card.evaluate((element) => {
-      const dataTransfer = new DataTransfer();
-      element.dispatchEvent(new DragEvent("dragstart", { bubbles: true, dataTransfer }));
-    });
+    const dataTransfer = await page.evaluateHandle(() => new DataTransfer());
+    await card.dispatchEvent("dragstart", { dataTransfer });
     await expect(slot).toHaveClass(/is-compatible/);
     await expect(page.locator(".architect-policy-slot.is-incompatible").first()).toHaveAttribute("aria-disabled", "true");
-    await card.evaluate((element) => element.dispatchEvent(new DragEvent("dragend", { bubbles: true })));
-    await card.dragTo(slot);
+    await slot.dispatchEvent("dragover", { dataTransfer });
+    await slot.dispatchEvent("drop", { dataTransfer });
+    await card.dispatchEvent("dragend", { dataTransfer });
     await expect(page.locator(`.architect-policy-slot[data-edge-id="${visible!.edgeId}"]`)).toHaveCount(0);
     await expect(page.locator(`[data-policy-summary="${kind}"]`)).toHaveCount(1);
   });
@@ -455,7 +454,9 @@ test("parallel preview exposes every active edge but renders at most four stable
   await page.waitForTimeout(100);
   await setDocumentVisibility(page, true);
   const resumedProgress = Number(await activeGroup.locator(".architect-edge__motion-dot").getAttribute("data-progress"));
-  expect(resumedProgress).toBeGreaterThan(hiddenProgress);
+  const circularProgressDelta = (resumedProgress - hiddenProgress + 1) % 1;
+  expect(circularProgressDelta).toBeGreaterThan(0.02);
+  expect(circularProgressDelta).toBeLessThan(0.5);
   await setDocumentVisibility(page, false);
   await expect(originalActiveGroup).toHaveAttribute("data-status", "traversed");
   await expect(originalActiveGroup.locator(".architect-edge__status")).toHaveAttribute("data-edge-status-label", "Traversed");
