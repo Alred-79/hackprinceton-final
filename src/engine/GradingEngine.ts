@@ -1,316 +1,179 @@
-import type { SimNode, SimEdge, DeterministicResults, Scenario } from "@/types/simulator";
+import type { DeterministicResults, Scenario, SimEdge, SimNode } from "@/types/simulator";
 import { getModelById } from "@/data/models";
 import {
-  detectCycles,
-  getDisconnectedNodes,
   countChainedExecutorsWithoutGate,
+  detectCycles,
   getAdjacencyList,
+  getDisconnectedNodes,
+  getIncomingMap,
+  topologicalSort,
 } from "./graphUtils";
 
-const LOOP_ITERATIONS = 3;
+const ASSUMED_INPUT_TOKENS = 1_000;
+const ASSUMED_OUTPUT_TOKENS = 500;
+const BOUNDED_LOOP_ATTEMPTS = 3;
+
+function isGenerative(node: SimNode) {
+  return node.type === "executor" || node.type === "evaluator" || node.type === "router";
+}
+
+function estimatedModelCost(node: SimNode): number {
+  const model = getModelById(node.config.model || "gpt-4o");
+  if (!model) return 0;
+  return calculateTokenCost(
+    ASSUMED_INPUT_TOKENS,
+    ASSUMED_OUTPUT_TOKENS,
+    model.inputPricePerMillion,
+    model.outputPricePerMillion,
+  );
+}
+
+export function calculateTokenCost(
+  inputTokens: number,
+  outputTokens: number,
+  inputPricePerMillion: number,
+  outputPricePerMillion: number,
+) {
+  return (
+    inputTokens * inputPricePerMillion + outputTokens * outputPricePerMillion
+  ) / 1_000_000;
+}
+
+function assumedNodeLatency(node: SimNode): number {
+  if (isGenerative(node)) {
+    return getModelById(node.config.model || "gpt-4o")?.assumedLatencySeconds ?? 1;
+  }
+  const assumptions: Partial<Record<SimNode["type"], number>> = {
+    web_search: 2,
+    file_rw: 0.5,
+    tool_rag: 1,
+    code_exec: 1.5,
+    api_call: 0.8,
+    kafka_stream: 0.3,
+    mcp_server: 0.5,
+  };
+  // Human wait is deliberately excluded until the user supplies a value.
+  return assumptions[node.type] ?? 0;
+}
+
+export function criticalPathLatency(nodes: SimNode[], edges: SimEdge[]): number {
+  const order = topologicalSort(nodes, edges);
+  const nodeMap = new Map(nodes.map((node) => [node.id, node]));
+  const incoming = getIncomingMap(nodes, edges);
+  const finish = new Map<string, number>();
+
+  for (const nodeId of order) {
+    const predecessors = incoming.get(nodeId) ?? [];
+    const predecessorFinish = Math.max(0, ...predecessors.map((id) => finish.get(id) ?? 0));
+    const node = nodeMap.get(nodeId);
+    finish.set(nodeId, predecessorFinish + (node ? assumedNodeLatency(node) : 0));
+  }
+  return Math.max(0, ...finish.values());
+}
 
 export function computeDeterministicResults(
   nodes: SimNode[],
   edges: SimEdge[],
-  scenario: Scenario
+  scenario: Scenario,
 ): DeterministicResults {
   const bonuses: Array<{ label: string; value: number }> = [];
   const penalties: Array<{ label: string; value: number }> = [];
   const warnings: string[] = [];
-
-  // --- Cost calculation ---
-  let totalCost = 0;
   const cycles = detectCycles(nodes, edges);
-  const nodeMap = new Map(nodes.map((n) => [n.id, n]));
   const cycleNodeIds = new Set(cycles.flat());
+  const nodeMap = new Map(nodes.map((node) => [node.id, node]));
 
-  nodes.forEach((n) => {
-    if (n.type === "executor" || n.type === "evaluator" || n.type === "router") {
-      const model = getModelById(n.config.model || "gpt-4o");
-      if (model) {
-        const loopMultiplier = cycleNodeIds.has(n.id) ? LOOP_ITERATIONS : 1;
-        totalCost += model.costPer1kTokens * loopMultiplier;
-      }
-    }
-    // Tool nodes have small fixed costs
-    if (n.type === "web_search") totalCost += 0.1;
-    if (n.type === "file_rw") totalCost += 0.05;
-    if (n.type === "tool_rag") totalCost += 0.2;
-    if (n.type === "code_exec") totalCost += 0.15;
-    if (n.type === "api_call") totalCost += 0.08;
-    if (n.type === "kafka_stream") totalCost += 0.12;
-    if (n.type === "human_review") totalCost += 0; // free
-    if (n.type === "mcp_server") {
-      totalCost += 0.30; // coordination overhead
-      const served = n.config.servedTools || [];
-      served.forEach((t) => {
-        if (t === "web_search") totalCost += 0.1;
-        if (t === "file_rw") totalCost += 0.05;
-        if (t === "tool_rag") totalCost += 0.2;
-        if (t === "code_exec") totalCost += 0.15;
-        if (t === "api_call") totalCost += 0.08;
-      });
-    }
-  });
+  const baseCost = nodes.filter(isGenerative).reduce((sum, node) => sum + estimatedModelCost(node), 0);
+  const repeatedCycleCost = nodes
+    .filter((node) => cycleNodeIds.has(node.id) && isGenerative(node))
+    .reduce((sum, node) => sum + estimatedModelCost(node) * (BOUNDED_LOOP_ATTEMPTS - 1), 0);
+  const costLow = baseCost;
+  const costHigh = baseCost + repeatedCycleCost;
 
-  // --- Latency calculation ---
-  const adj = getAdjacencyList(nodes, edges);
+  const baseLatency = criticalPathLatency(nodes, edges);
+  const repeatedCycleLatency = nodes
+    .filter((node) => cycleNodeIds.has(node.id))
+    .reduce((sum, node) => sum + assumedNodeLatency(node) * (BOUNDED_LOOP_ATTEMPTS - 1), 0);
+  const latencyLow = baseLatency;
+  const latencyHigh = baseLatency + repeatedCycleLatency;
 
-  let totalLatency = 0;
-  // Simple path-based latency: sum along longest path
-  function getNodeLatency(n: SimNode): number {
-    if (n.type === "executor" || n.type === "evaluator" || n.type === "router") {
-      const model = getModelById(n.config.model || "gpt-4o");
-      return model ? model.avgLatency : 1.0;
-    }
-    if (n.type === "web_search") return 2.0;
-    if (n.type === "file_rw") return 0.5;
-    if (n.type === "tool_rag") return 1.0;
-    if (n.type === "code_exec") return 1.5;
-    if (n.type === "api_call") return 0.8;
-    if (n.type === "kafka_stream") return 0.3;
-    if (n.type === "human_review") return 30.0; // human wait time
-    if (n.type === "mcp_server") {
-      // coordination hop + max served tool latency
-      const served = n.config.servedTools || [];
-      const toolLatencies: Record<string, number> = { web_search: 2.0, file_rw: 0.5, tool_rag: 1.0, code_exec: 1.5, api_call: 0.8 };
-      const maxToolLat = served.reduce((mx, t) => Math.max(mx, toolLatencies[t] || 0), 0);
-      return 0.5 + maxToolLat;
-    }
-    return 0;
-  }
-
-  // BFS-based longest path
-  const longestPath = new Map<string, number>();
-  nodes.forEach((n) => longestPath.set(n.id, 0));
-
-  // For nodes with multiple outgoing edges (parallel), take max of children
-  // For sequential, sum them
-  const inputNode = nodes.find((n) => n.type === "input");
-  if (inputNode) {
-    const queue = [inputNode.id];
-    longestPath.set(inputNode.id, 0);
-    const visited = new Set<string>();
-
-    while (queue.length > 0) {
-      const current = queue.shift()!;
-      if (visited.has(current)) continue;
-      visited.add(current);
-
-      const currentLatency = longestPath.get(current) || 0;
-      const neighbors = adj.get(current) || [];
-
-      for (const neighbor of neighbors) {
-        const neighborNode = nodeMap.get(neighbor);
-        if (!neighborNode) continue;
-
-        const loopMultiplier = cycleNodeIds.has(neighbor) ? LOOP_ITERATIONS : 1;
-        const adjustedLatency = currentLatency + getNodeLatency(neighborNode) * loopMultiplier;
-
-        if (adjustedLatency > (longestPath.get(neighbor) || 0)) {
-          longestPath.set(neighbor, adjustedLatency);
-        }
-        if (!visited.has(neighbor)) {
-          queue.push(neighbor);
-        }
-      }
-    }
-
-    totalLatency = Math.max(...Array.from(longestPath.values()));
-  }
-
-  // --- Reliability calculation ---
-  let reliability = 100;
-
-  // Disconnected nodes penalty
+  let scenarioReadiness = 100;
   const disconnected = getDisconnectedNodes(nodes, edges);
   if (disconnected.length > 0) {
-    const penalty = disconnected.length * 5;
-    penalties.push({ label: `${disconnected.length} disconnected node(s)`, value: -penalty });
-    reliability -= penalty;
-    warnings.push(`${disconnected.length} node(s) are not connected to the graph`);
+    const points = disconnected.length * 10;
+    scenarioReadiness -= points;
+    penalties.push({ label: `${disconnected.length} disconnected node(s)`, value: -points });
+    warnings.push(`${disconnected.length} node(s) are isolated from the graph.`);
   }
 
-  // Cycle detection
-  const cyclesWithoutEvaluator = cycles.filter((cycle) => {
-    return !cycle.some((id) => {
-      const n = nodeMap.get(id);
-      return n && n.type === "evaluator";
-    });
-  });
-
-  if (cyclesWithoutEvaluator.length > 0) {
-    penalties.push({ label: "Loop without Evaluator", value: -100 });
-    reliability = 0;
-    warnings.push("Cycle detected without an Evaluator node - infinite loop risk!");
-  }
-
-  // Evaluator bonuses (stacking: first +25%, second +10%, third+ +2%)
-  const evaluators = nodes.filter((n) => n.type === "evaluator");
-  evaluators.forEach((ev, i) => {
-    const bonus = i === 0 ? 25 : i === 1 ? 10 : 2;
-    bonuses.push({ label: `Evaluator: ${ev.config.label}`, value: bonus });
-    // Optimistic bonus (may be removed after LLM check)
-  });
-  const evalBonus = evaluators.reduce((sum, _, i) => sum + (i === 0 ? 25 : i === 1 ? 10 : 2), 0);
-
-  // Context gate bonus (+5% per gate)
-  const gates = nodes.filter((n) => n.type === "context_gate");
-  gates.forEach((g) => {
-    if (g.config.contextGateMode) {
-      bonuses.push({ label: `Context Gate: ${g.config.label}`, value: 5 });
-    }
-  });
-  const gateBonus = gates.filter((g) => g.config.contextGateMode).length * 5;
-
-  // Tool count penalties
-  nodes.forEach((n) => {
-    if (n.type === "executor") {
-      const toolCount = (n.config.tools || []).length;
-      if (toolCount >= 10) {
-        const penalty = 15 + (toolCount - 10) * 3;
-        penalties.push({ label: `${n.config.label}: ${toolCount} tools`, value: -penalty });
-        reliability -= penalty;
-      }
-    }
-  });
-
-  // Output schema bonus (structural guarantees beat runtime checks)
-  const schemaNodes = nodes.filter((n) =>
-    (n.type === "executor" || n.type === "evaluator") && n.config.outputSchema?.trim()
+  const cyclesWithoutEvaluator = cycles.filter((cycle) =>
+    !cycle.some((id) => nodeMap.get(id)?.type === "evaluator"),
   );
-  let schemaBonus = 0;
-  schemaNodes.forEach((n, i) => {
-    try {
-      JSON.parse(n.config.outputSchema!);
-      const bonus = i === 0 ? 8 : 3;
-      bonuses.push({ label: `Schema: ${n.config.label}`, value: bonus });
-      schemaBonus += bonus;
-    } catch {
-      warnings.push(`${n.config.label}: outputSchema is not valid JSON`);
-    }
-  });
-
-  // Schema chain bonus — full pipeline contract coverage
-  const allExecutors = nodes.filter((n) => n.type === "executor");
-  const contractedExecutors = allExecutors.filter((n) => {
-    try { return !!n.config.outputSchema?.trim() && JSON.parse(n.config.outputSchema); }
-    catch { return false; }
-  });
-  let schemaChainBonus = 0;
-  if (allExecutors.length >= 2 && contractedExecutors.length === allExecutors.length) {
-    schemaChainBonus = 8;
-    bonuses.push({ label: "Schema Chain: every executor is contract-bound", value: schemaChainBonus });
+  if (cyclesWithoutEvaluator.length > 0) {
+    scenarioReadiness -= 50;
+    penalties.push({ label: "Cycle lacks an evaluator/termination signal", value: -50 });
+    warnings.push("Cycle bounds are assumed for estimation; this graph is not executable as drawn.");
   }
 
-  // Chained executors without gate
+  const brainNodes = nodes.filter(isGenerative);
+  const emptyPromptNodes = brainNodes.filter((node) => {
+    if (node.type === "executor") return !node.config.systemPrompt?.trim();
+    if (node.type === "evaluator") {
+      return !node.config.evaluationPrompt?.trim() && !node.config.passFailCriteria?.trim();
+    }
+    return !node.config.routingPrompt?.trim();
+  });
+  if (emptyPromptNodes.length > 0) {
+    const points = emptyPromptNodes.length * 5;
+    scenarioReadiness -= points;
+    penalties.push({ label: `${emptyPromptNodes.length} generative node(s) lack prompts`, value: -points });
+  }
+
   const chainLength = countChainedExecutorsWithoutGate(nodes, edges);
   if (chainLength >= 4) {
-    const penalty = (chainLength - 3) * 5;
-    penalties.push({ label: `${chainLength} chained Executors without Context Gate`, value: -penalty });
-    reliability -= penalty;
-    warnings.push("Long chain of Executors without a Context Gate may cause context overflow");
+    const points = (chainLength - 3) * 5;
+    scenarioReadiness -= points;
+    penalties.push({ label: `${chainLength} executors without a context boundary`, value: -points });
+    warnings.push("Long generative chains increase context exposure; no probability is inferred.");
   }
 
-  // Fallback router bonus for failure scenarios
-  if (scenario.failureSequence) {
-    const hasFallback = nodes.some((n) => n.type === "fallback_router");
-    if (hasFallback) {
-      bonuses.push({ label: "Fallback Router for failure handling", value: 15 });
-    } else {
-      penalties.push({ label: "No fallback for unreliable tool", value: -20 });
-      reliability -= 20;
-    }
+  if (scenario.failureSequence && !nodes.some((node) => node.type === "fallback_router")) {
+    scenarioReadiness -= 10;
+    penalties.push({ label: "Known fixture failure lacks an explicit fallback path", value: -10 });
   }
 
-  // Human review bonus: +15% when before high-stakes output, -5% when unnecessary
-  const humanNodes = nodes.filter((n) => n.type === "human_review");
-  humanNodes.forEach((hr) => {
-    // Check if this human review connects toward output
-    const outgoing = edges.filter((e) => e.source === hr.id);
-    const reachesOutput = outgoing.some((e) => {
-      const target = nodeMap.get(e.target);
-      if (!target) return false;
-      if (target.type === "output") return true;
-      // Check one more hop
-      return edges.some((e2) => e2.source === e.target && nodeMap.get(e2.target)?.type === "output");
-    });
-    // Check if a router with "Critical" or "Urgent" routes exists upstream
-    const hasHighStakesPath = nodes.some((n) =>
-      n.type === "router" && (n.config.routes || []).some((r) =>
-        /critical|urgent|p1|p2/i.test(r)
-      )
-    );
-    if (reachesOutput && hasHighStakesPath) {
-      bonuses.push({ label: `Human Review: ${hr.config.label} (high-stakes sign-off)`, value: 15 });
-    } else if (reachesOutput) {
-      bonuses.push({ label: `Human Review: ${hr.config.label} (quality gate)`, value: 5 });
-    }
-  });
-
-  // MCP server bonus/penalty
-  const mcpNodes = nodes.filter((n) => n.type === "mcp_server");
-  mcpNodes.forEach((mcp) => {
-    const served = (mcp.config.servedTools || []).length;
-    if (served >= 3) {
-      bonuses.push({ label: `MCP Server: ${mcp.config.label} (${served} tools)`, value: 5 });
-    } else if (served <= 1) {
-      penalties.push({ label: `MCP Server: ${mcp.config.label} (overhead, only ${served} tool)`, value: -3 });
-      reliability -= 3;
-    }
-  });
-
-  // Add bonuses to reliability
-  const humanBonus = humanNodes.reduce((sum, hr) => {
-    const outgoing = edges.filter((e) => e.source === hr.id);
-    const reachesOutput = outgoing.some((e) => {
-      const target = nodeMap.get(e.target);
-      if (!target) return false;
-      if (target.type === "output") return true;
-      return edges.some((e2) => e2.source === e.target && nodeMap.get(e2.target)?.type === "output");
-    });
-    const hasHighStakesPath = nodes.some((n) =>
-      n.type === "router" && (n.config.routes || []).some((r) => /critical|urgent|p1|p2/i.test(r))
-    );
-    if (!reachesOutput) return sum;
-    return sum + (hasHighStakesPath ? 15 : 5);
-  }, 0);
-  const mcpBonus = mcpNodes.reduce((sum, mcp) => {
-    const served = (mcp.config.servedTools || []).length;
-    return sum + (served >= 3 ? 5 : 0);
-  }, 0);
-  reliability += evalBonus + gateBonus + schemaBonus + schemaChainBonus + humanBonus + mcpBonus;
-  reliability = Math.max(0, Math.min(100, reliability));
-
-  // Model reliability contribution
-  const brainNodes = nodes.filter((n) => ["executor", "evaluator", "router"].includes(n.type));
-  if (brainNodes.length > 0) {
-    const avgModelReliability =
-      brainNodes.reduce((sum, n) => {
-        const model = getModelById(n.config.model || "gpt-4o");
-        return sum + (model ? model.reliability * 100 : 95);
-      }, 0) / brainNodes.length;
-    
-    // Weighted average with architecture reliability
-    reliability = Math.min(reliability, avgModelReliability);
+  for (const node of nodes.filter((item) => item.type === "mcp_server")) {
+    const tools = node.config.servedTools?.length ?? 0;
+    warnings.push(`${node.config.label} exposes ${tools} tool schema(s); no quality bonus is assigned.`);
+  }
+  if (nodes.some((node) => node.type === "human_review")) {
+    warnings.push("Human wait time is not estimated without an explicit user assumption.");
+  }
+  if (edges.some((edge) => (getAdjacencyList(nodes, edges).get(edge.source)?.length ?? 0) > 1)) {
+    warnings.push("Route probabilities are unspecified; cost and latency are shown as assumption-bound ranges.");
   }
 
-  // Empty prompt penalty (approximation - LLM does the real check)
-  const emptyPromptNodes = brainNodes.filter((n) => {
-    if (n.type === "executor") return !n.config.systemPrompt;
-    if (n.type === "evaluator") return !n.config.evaluationPrompt && !n.config.passFailCriteria;
-    if (n.type === "router") return !n.config.routingPrompt;
-    return false;
-  });
-
-  if (emptyPromptNodes.length > 0) {
-    warnings.push(`${emptyPromptNodes.length} brain node(s) have empty prompts`);
-  }
-
+  scenarioReadiness = Math.max(0, Math.min(100, scenarioReadiness));
   return {
-    cost: Math.round(totalCost * 100) / 100,
-    latency: Math.round(totalLatency * 10) / 10,
-    reliability: Math.round(Math.max(0, Math.min(100, reliability))),
+    cost: Math.round(costHigh * 1_000_000) / 1_000_000,
+    latency: Math.round(latencyHigh * 10) / 10,
+    scenarioReadiness: Math.round(scenarioReadiness),
+    metricLabels: {
+      cost: "estimate",
+      latency: "estimate",
+      scenarioReadiness: "heuristic",
+      taskPass: "not_measured",
+    },
+    intervals: {
+      cost: { low: costLow, high: costHigh },
+      latency: { low: latencyLow, high: latencyHigh },
+    },
+    assumptions: [
+      `${ASSUMED_INPUT_TOKENS} input and ${ASSUMED_OUTPUT_TOKENS} output tokens per generative visit.`,
+      "Legacy dated price profile (2024-08-01); not current provider billing.",
+      `Cycles are capped at ${BOUNDED_LOOP_ATTEMPTS} visits for the displayed range.`,
+      "Tool fees and human wait are unknown unless observed or explicitly configured.",
+    ],
     bonuses,
     penalties,
     warnings,

@@ -12,13 +12,19 @@ import { useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { vibrateWarning, vibrateError, vibrateSuccess, vibratePulse } from "@/lib/vibrate";
 import { ContextThermometer } from "./ContextThermometer";
+import { withTimeout } from "@/lib/async";
+import { isScenarioExecutable } from "@/lib/runtimeScenarios";
+import { useRuntimeStore } from "@/store/runtimeStore";
+import { ASSURANCE_CLIENT_ENABLED } from "@/lib/assuranceApi";
+import { AssuranceControls } from "./AssuranceControls";
+import { useAssuranceStore } from "@/store/assuranceStore";
 
 export function HUD() {
   const {
     nodes, edges, currentScenario, isEvaluating, isLLMLoading,
     historyIndex, history, hintsRevealed, attempts,
     setDeterministicResults, setIsEvaluating, setIsLLMLoading,
-    setLLMResults, setActiveRightTab, incrementAttempts,
+    setLLMResults, setActiveRightTab, setActiveResultsTab, incrementAttempts,
     undo, redo, revealNextHint, resetBoard, loadAnswer,
   } = useSimulatorStore();
 
@@ -26,6 +32,12 @@ export function HUD() {
   const [showHints, setShowHints] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showAnswerConfirm, setShowAnswerConfirm] = useState(false);
+  const runPair = useRuntimeStore((state) => state.runPair);
+  const runtimeLoading = useRuntimeStore((state) => state.runLoading);
+  const selectedFixturePreset = useRuntimeStore(
+    (state) => state.selectedFixturePreset,
+  );
+  const assuranceEnabled = useAssuranceStore((state) => state.enabled);
 
   const liveMetrics = useMemo(() => {
     if (!currentScenario) return null;
@@ -39,9 +51,9 @@ export function HUD() {
 
   const costOk = liveMetrics.cost <= currentScenario.maxCost;
   const latencyOk = liveMetrics.latency <= currentScenario.maxLatency;
-  const reliabilityOk = liveMetrics.reliability >= currentScenario.minReliability;
+  const readinessOk = liveMetrics.scenarioReadiness >= currentScenario.minReliability;
 
-  const handleRun = async () => {
+  const handleAnalyze = async () => {
     if (!currentScenario) return;
     
     // Vibrate warning if metrics are over budget before running
@@ -52,6 +64,7 @@ export function HUD() {
     incrementAttempts();
     setDeterministicResults(liveMetrics);
     setActiveRightTab("results");
+    setActiveResultsTab("analysis");
 
     // Start LLM evaluation
     setIsLLMLoading(true);
@@ -81,8 +94,9 @@ export function HUD() {
         topology,
       };
 
-      const { data, error } = await supabase.functions.invoke("grade-solution", {
-        body: {
+      const { data, error } = await withTimeout(
+        supabase.functions.invoke("grade-solution", {
+          body: {
           scenarioId: currentScenario.id,
           scenarioBrief: currentScenario.brief,
           scenarioDescription: currentScenario.description,
@@ -92,10 +106,13 @@ export function HUD() {
           deterministicResults: {
             cost: liveMetrics.cost,
             latency: liveMetrics.latency,
-            reliability: liveMetrics.reliability,
+            scenarioReadiness: liveMetrics.scenarioReadiness,
           },
-        },
-      });
+          },
+        }),
+        20_000,
+        "Prompt analysis timed out after 20 seconds.",
+      );
 
       if (error) throw error;
       setLLMResults(data);
@@ -110,7 +127,14 @@ export function HUD() {
       setLLMResults(null);
       vibrateError();
     }
+    setIsLLMLoading(false);
     setIsEvaluating(false);
+  };
+
+  const handleRunWorkflow = () => {
+    setActiveRightTab("results");
+    setActiveResultsTab("execution");
+    void runPair(currentScenario.id, selectedFixturePreset);
   };
 
   const handleReset = () => {
@@ -120,31 +144,33 @@ export function HUD() {
 
   const attemptsForEditorial = 3;
   const editorialUnlocked = attempts >= attemptsForEditorial;
+  const executable = isScenarioExecutable(currentScenario.id, null);
 
   return (
     <div className="flex flex-col gap-2">
+      {ASSURANCE_CLIENT_ENABLED && <AssuranceControls />}
       {/* Metrics bar */}
       <div className="flex items-center gap-3 rounded-lg border border-border bg-card/80 backdrop-blur px-3 py-2">
         <MetricBadge
           icon={<DollarSign className="h-3.5 w-3.5" />}
-          label="Cost"
-          value={`$${liveMetrics.cost}`}
+          label="Cost · estimated"
+          value={`$${liveMetrics.intervals.cost.low.toFixed(4)}–$${liveMetrics.intervals.cost.high.toFixed(4)}`}
           threshold={`$${currentScenario.maxCost}`}
           ok={costOk}
         />
         <MetricBadge
           icon={<Clock className="h-3.5 w-3.5" />}
-          label="Latency"
-          value={`${liveMetrics.latency}s`}
+          label="Latency · estimated"
+          value={`${liveMetrics.intervals.latency.low.toFixed(1)}–${liveMetrics.intervals.latency.high.toFixed(1)}s`}
           threshold={`${currentScenario.maxLatency}s`}
           ok={latencyOk}
         />
         <MetricBadge
           icon={<ShieldCheck className="h-3.5 w-3.5" />}
-          label="Reliability"
-          value={`${liveMetrics.reliability}%`}
-          threshold={`${currentScenario.minReliability}%`}
-          ok={reliabilityOk}
+          label="Scenario readiness · heuristic"
+          value={`${liveMetrics.scenarioReadiness}/100`}
+          threshold={`${currentScenario.minReliability}/100`}
+          ok={readinessOk}
         />
 
         <div className="h-6 w-px bg-border mx-1" />
@@ -164,7 +190,7 @@ export function HUD() {
                 {liveMetrics.bonuses.map((b, i) => (
                   <div key={i} className="flex justify-between text-muted-foreground">
                     <span>{b.label}</span>
-                    <span className="text-emerald-400">+{b.value}%</span>
+                    <span className="text-emerald-400">+{b.value} pts</span>
                   </div>
                 ))}
               </div>
@@ -175,7 +201,7 @@ export function HUD() {
                 {liveMetrics.penalties.map((p, i) => (
                   <div key={i} className="flex justify-between text-muted-foreground">
                     <span>{p.label}</span>
-                    <span className="text-destructive">{p.value}%</span>
+                    <span className="text-destructive">{p.value} pts</span>
                   </div>
                 ))}
               </div>
@@ -188,6 +214,13 @@ export function HUD() {
                 ))}
               </div>
             )}
+            <div>
+              <p className="font-semibold text-cyan-400 mb-1">Assumptions</p>
+              {liveMetrics.assumptions.map((assumption) => (
+                <p key={assumption} className="text-muted-foreground mb-1">{assumption}</p>
+              ))}
+              <p className="text-muted-foreground">Task pass: Not measured in Design mode.</p>
+            </div>
           </PopoverContent>
         </Popover>
 
@@ -224,14 +257,26 @@ export function HUD() {
             <Eye className="h-3.5 w-3.5" />
           </Button>
           <Button
-            onClick={handleRun}
+            variant="outline"
+            onClick={handleAnalyze}
             disabled={isEvaluating}
             size="sm"
             className="h-7 gap-1 text-xs ml-1"
           >
-            <Play className="h-3.5 w-3.5" />
-            {isEvaluating ? "Running..." : "Run"}
+            <ShieldCheck className="h-3.5 w-3.5" />
+            {isEvaluating ? "Analyzing..." : "Analyze Design"}
           </Button>
+          {executable && !assuranceEnabled && (
+            <Button
+              onClick={handleRunWorkflow}
+              disabled={runtimeLoading !== null}
+              size="sm"
+              className="h-7 gap-1 text-xs"
+            >
+              <Play className="h-3.5 w-3.5" />
+              {runtimeLoading ? "Running..." : "Run registered baseline"}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -369,8 +414,8 @@ function ScenarioDetailsOverlay({ onClose, scenario }: { onClose: () => void; sc
             <p className="font-semibold text-foreground">{scenario.maxLatency}s</p>
           </div>
           <div className="rounded border border-border p-2">
-            <p className="text-muted-foreground">Min Reliability</p>
-            <p className="font-semibold text-foreground">{scenario.minReliability}%</p>
+            <p className="text-muted-foreground">Readiness Target</p>
+            <p className="font-semibold text-foreground">{scenario.minReliability}/100</p>
           </div>
         </div>
         <Button variant="outline" size="sm" onClick={onClose} className="w-full">Close</Button>

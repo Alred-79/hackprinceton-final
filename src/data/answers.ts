@@ -5,94 +5,6 @@ interface Answer {
   edges: SimEdge[];
 }
 
-const INCIDENT_REPORT_SCHEMA = JSON.stringify({
-  type: "object",
-  properties: {
-    severity: { type: "string", enum: ["P1-Critical", "P2-High", "P3-Medium", "P4-Low"] },
-    title: { type: "string" },
-    affected_systems: { type: "array", items: { type: "string" } },
-    root_cause: { type: "string" },
-    impact: { type: "string" },
-    mitigation_steps: { type: "array", items: { type: "string" } },
-    status: { type: "string", enum: ["investigating", "identified", "mitigated", "resolved"] },
-  },
-  required: ["severity", "title", "affected_systems", "root_cause", "mitigation_steps"],
-}, null, 2);
-
-const THREAT_BRIEF_SCHEMA = JSON.stringify({
-  type: "object",
-  properties: {
-    threat_id: { type: "string" },
-    severity: { type: "string", enum: ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"] },
-    title: { type: "string" },
-    indicators: { type: "array", items: { type: "string" } },
-    affected_assets: { type: "array", items: { type: "string" } },
-    attack_vector: { type: "string" },
-    recommended_actions: { type: "array", items: { type: "string" } },
-    confidence: { type: "string", enum: ["high", "medium", "low"] },
-    data_gaps: { type: "array", items: { type: "string" } },
-  },
-  required: ["severity", "title", "indicators", "attack_vector", "recommended_actions", "confidence"],
-}, null, 2);
-
-const STANDARD_BRIEF_SCHEMA = JSON.stringify({
-  type: "object",
-  properties: {
-    severity: { type: "string", enum: ["HIGH", "MEDIUM", "LOW", "INFO"] },
-    title: { type: "string" },
-    indicators: { type: "array", items: { type: "string" } },
-    attack_vector: { type: "string" },
-    campaign_match: { type: "string" },
-    recommended_actions: { type: "array", items: { type: "string" } },
-    confidence: { type: "string", enum: ["high", "medium", "low"] },
-  },
-  required: ["severity", "title", "indicators", "attack_vector", "recommended_actions", "confidence"],
-}, null, 2);
-
-const GAP_REPORT_SCHEMA = JSON.stringify({
-  type: "object",
-  properties: {
-    missing_feeds: { type: "array", items: { type: "string" } },
-    missing_ioc_types: { type: "array", items: { type: "string" } },
-    risk_assessment: { type: "string" },
-    confidence_impact: { type: "string" },
-    recommended_workarounds: { type: "array", items: { type: "string" } },
-  },
-  required: ["missing_feeds", "risk_assessment", "confidence_impact"],
-}, null, 2);
-
-const INVESTMENT_MEMO_SCHEMA = JSON.stringify({
-  type: "object",
-  properties: {
-    company_overview: { type: "string" },
-    financials: {
-      type: "object",
-      properties: {
-        revenue: { type: "string" },
-        growth_rate: { type: "string" },
-        margins: { type: "string" },
-        key_metrics: { type: "array", items: { type: "string" } },
-      },
-    },
-    risks: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          category: { type: "string" },
-          description: { type: "string" },
-          severity: { type: "string" },
-        },
-      },
-    },
-    team_assessment: { type: "string" },
-    recommendation: { type: "string", enum: ["strong_buy", "buy", "hold", "pass"] },
-    confidence_level: { type: "string", enum: ["high", "medium", "low"] },
-    caveats: { type: "array", items: { type: "string" } },
-  },
-  required: ["company_overview", "financials", "risks", "recommendation", "confidence_level"],
-}, null, 2);
-
 export const SCENARIO_ANSWERS: Record<string, Answer> = {
   // === BLOATED SWARM ===
   "bloated-swarm": {
@@ -408,7 +320,7 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
       { id: "input-1", type: "input", config: { label: "Incident Alert" }, position: { x: 50, y: 300 }, locked: true },
       { id: "web-status", type: "web_search", config: { label: "Status Pages" }, position: { x: 280, y: 120 } },
       { id: "file-logs", type: "file_rw", config: { label: "System Logs" }, position: { x: 280, y: 300 } },
-      { id: "rag-runbooks", type: "tool_rag", config: { label: "Runbooks", kValue: 5 }, position: { x: 280, y: 480 } },
+      { id: "rag-runbooks", type: "tool_rag", config: { label: "Runbook Retrieval", kValue: 5, retrievalMode: "hybrid" }, position: { x: 280, y: 480 } },
       { id: "fallback-logs", type: "fallback_router", config: { label: "Log Status Check" }, position: { x: 480, y: 300 } },
       {
         id: "exec-log-fallback", type: "executor",
@@ -444,7 +356,6 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
           label: "Critical Response",
           model: "gpt-4o",
           systemPrompt: "You are a senior incident commander writing a P1/P2 incident report. Identify the root cause (or hypothesis if incomplete data), list affected systems, provide mitigation steps in priority order, assess blast radius and customer impact. If log data was unavailable, note this gap. Be decisive and action-oriented.",
-          outputSchema: INCIDENT_REPORT_SCHEMA,
         },
         position: { x: 1120, y: 140 },
       },
@@ -462,7 +373,6 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
           label: "Routine Response",
           model: "gpt-4o-mini",
           systemPrompt: "You are an operations assistant writing a routine incident report. Summarize the issue and likely cause, list affected systems, provide recommended actions or runbook references, and note if this matches a known pattern. Be clear and concise.",
-          outputSchema: INCIDENT_REPORT_SCHEMA,
         },
         position: { x: 1120, y: 420 },
       },
@@ -514,7 +424,7 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
       },
       { id: "web-market", type: "web_search", config: { label: "Market Research" }, position: { x: 480, y: 140 } },
       { id: "file-legal", type: "file_rw", config: { label: "Legal Documents" }, position: { x: 480, y: 320 } },
-      { id: "rag-company", type: "tool_rag", config: { label: "Company Data", kValue: 8 }, position: { x: 480, y: 500 } },
+      { id: "rag-company", type: "tool_rag", config: { label: "Company Knowledge", kValue: 5, retrievalMode: "hybrid" }, position: { x: 480, y: 500 } },
       { id: "fallback-legal", type: "fallback_router", config: { label: "Legal Doc Check" }, position: { x: 680, y: 320 } },
       {
         id: "exec-gap-noter", type: "executor",
@@ -540,7 +450,6 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
           label: "Memo Writer",
           model: "gpt-4o",
           systemPrompt: "You are a senior M&A analyst writing an investment memo following the output schema exactly. Every claim must cite specific data. If legal documents were unavailable, add caveats. Recommendation must be justified by financials and risk profile. Confidence level reflects data completeness. Be analytical, not promotional.",
-          outputSchema: INVESTMENT_MEMO_SCHEMA,
         },
         position: { x: 1100, y: 320 },
       },
@@ -614,7 +523,6 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
           label: "Gap Noter",
           model: "gpt-4o-mini",
           systemPrompt: "Threat feed ingestion failed or returned corrupted indicator data. Flag exactly which feeds were unavailable, what IOC types are missing (IPs, domains, hashes), the risk this gap creates for threat assessment, and recommended workarounds (manual feed check, alternative sources, STIX/TAXII fallback). Do NOT fabricate indicators.",
-          outputSchema: GAP_REPORT_SCHEMA,
         },
         position: { x: 480, y: 520 },
       },
@@ -643,7 +551,6 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
           label: "Critical Analyst",
           model: "gpt-4o",
           systemPrompt: "You are a senior threat intelligence analyst writing a CRITICAL severity threat brief following the output schema exactly. Every claim must cite specific IOCs with source attribution. Assess attack vector, map to MITRE ATT&CK if possible, list affected assets, and provide prioritized response actions. If feed data was unavailable, add explicit caveats about reduced confidence. Be decisive and actionable — SOC analysts need to act on this NOW.",
-          outputSchema: THREAT_BRIEF_SCHEMA,
         },
         position: { x: 1120, y: 180 },
       },
@@ -653,7 +560,6 @@ export const SCENARIO_ANSWERS: Record<string, Answer> = {
           label: "Standard Analyst",
           model: "gpt-4o-mini",
           systemPrompt: "You are a threat intelligence analyst writing a standard-severity threat brief. Summarize the indicators, assess likely attack vector, note if indicators match known campaigns, and provide monitoring recommendations. Keep it concise — this is informational, not urgent.",
-          outputSchema: STANDARD_BRIEF_SCHEMA,
         },
         position: { x: 1120, y: 460 },
       },

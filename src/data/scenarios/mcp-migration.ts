@@ -52,7 +52,7 @@ export const mcpMigration: Scenario = {
   llmThresholds: { minPromptScore: 50, minArchitectureScore: 55 },
   editorial: {
     explanation:
-      "Extract tools into 3 MCP servers by domain: Research MCP (web_search, tool_rag), Data MCP (file_rw, code_exec), and Comms MCP (api_call). Add a lightweight Router to classify the request and route to the appropriate MCP server. Each MCP server feeds a focused Executor with no direct tools — just clean MCP output. The Executor can now use a much cheaper model because its context isn't polluted with 12 tool definitions.",
+      "Extract tools into 3 MCP servers by domain: Research MCP (web search and Knowledge Retrieval), Data MCP (file and code operations), and Comms MCP (API calls). Add a lightweight Router to classify the request and route to the appropriate MCP server. Each MCP server feeds a focused Executor with no direct tools — just clean MCP output. The Executor can now use a much cheaper model because its context isn't polluted with 12 tool definitions.",
     commonMistakes: [
       { mistake: "Creating one MCP server with all 12 tools", whyItFails: "You've just moved the problem — the MCP server now has the same context bloat" },
       { mistake: "Keeping claude-opus after tool extraction", whyItFails: "With clean MCP routing, a medium model handles each domain perfectly" },

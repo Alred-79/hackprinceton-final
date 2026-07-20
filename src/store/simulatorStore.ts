@@ -7,6 +7,7 @@ import type {
   DeterministicResults,
   LLMGradeResponse,
   TraceStep,
+  ResultsTab,
 } from "@/types/simulator";
 import { SCENARIO_ANSWERS } from "@/data/answers";
 
@@ -20,6 +21,7 @@ interface SimulatorActions {
   addNode: (node: SimNode) => void;
   removeNode: (id: string) => void;
   updateNodeConfig: (id: string, config: Partial<SimNode["config"]>) => void;
+  replaceNodeConfig: (id: string, config: SimNode["config"]) => void;
   updateNodePosition: (id: string, position: { x: number; y: number }) => void;
   selectNode: (id: string | null) => void;
   
@@ -49,9 +51,12 @@ interface SimulatorActions {
   
   // UI
   setActiveRightTab: (tab: "inspector" | "results") => void;
+  setActiveResultsTab: (tab: ResultsTab) => void;
   
   // Reset
   resetBoard: () => void;
+  restoreGraphSnapshot: (nodes: SimNode[], edges: SimEdge[]) => void;
+  applyGraphPatch: (nodes: SimNode[], edges: SimEdge[]) => void;
   
   // Load answer
   loadAnswer: () => void;
@@ -75,6 +80,7 @@ export const useSimulatorStore = create<SimulatorState & SimulatorActions>((set,
   hintsRevealed: 0,
   attempts: 0,
   activeRightTab: "inspector",
+  activeResultsTab: "analysis",
 
   loadScenario: (scenario) => {
     const nodes = scenario.initialNodes ?? [
@@ -99,6 +105,7 @@ export const useSimulatorStore = create<SimulatorState & SimulatorActions>((set,
       hintsRevealed: 0,
       attempts: 0,
       activeRightTab: "inspector",
+      activeResultsTab: "analysis",
     });
   },
 
@@ -123,6 +130,14 @@ export const useSimulatorStore = create<SimulatorState & SimulatorActions>((set,
     get().pushHistory();
     set((s) => ({
       nodes: s.nodes.map((n) => (n.id === id ? { ...n, config: { ...n.config, ...config } } : n)),
+      resultsStale: s.deterministicResults !== null,
+    }));
+  },
+
+  replaceNodeConfig: (id, config) => {
+    get().pushHistory();
+    set((s) => ({
+      nodes: s.nodes.map((n) => (n.id === id ? { ...n, config: structuredClone(config) } : n)),
       resultsStale: s.deterministicResults !== null,
     }));
   },
@@ -200,6 +215,7 @@ export const useSimulatorStore = create<SimulatorState & SimulatorActions>((set,
   incrementAttempts: () => set((s) => ({ attempts: s.attempts + 1 })),
 
   setActiveRightTab: (tab) => set({ activeRightTab: tab }),
+  setActiveResultsTab: (tab) => set({ activeResultsTab: tab }),
 
   resetBoard: () => {
     const scenario = get().currentScenario;
@@ -222,6 +238,33 @@ export const useSimulatorStore = create<SimulatorState & SimulatorActions>((set,
       activeTraceStep: null,
       history: [{ nodes: structuredClone(nodes), edges: structuredClone(edges) }],
       historyIndex: 0,
+    });
+  },
+
+  restoreGraphSnapshot: (nodes, edges) => {
+    get().pushHistory();
+    set({
+      nodes: structuredClone(nodes),
+      edges: structuredClone(edges),
+      selectedNodeId: null,
+      deterministicResults: null,
+      llmResults: null,
+      resultsStale: false,
+      traceSteps: [],
+      activeTraceStep: null,
+    });
+  },
+
+  applyGraphPatch: (nodes, edges) => {
+    get().pushHistory();
+    set({
+      nodes: structuredClone(nodes),
+      edges: structuredClone(edges),
+      deterministicResults: null,
+      llmResults: null,
+      resultsStale: false,
+      traceSteps: [],
+      activeTraceStep: null,
     });
   },
 

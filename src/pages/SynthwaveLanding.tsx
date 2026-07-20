@@ -101,7 +101,7 @@ export default function SynthwaveLanding() {
     scene.add(nodes);
 
     const lineMaterial = new THREE.LineBasicMaterial({ color: 0x0088ff, transparent: true, opacity: 0.35 });
-    let linesMesh = new THREE.LineSegments(new THREE.BufferGeometry(), lineMaterial);
+    const linesMesh = new THREE.LineSegments(new THREE.BufferGeometry(), lineMaterial);
     scene.add(linesMesh);
 
     // City blocks

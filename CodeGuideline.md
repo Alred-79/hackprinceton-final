@@ -10,12 +10,15 @@ project-root/
   │   │   └── ui/            # Prebuilt and custom UI components, grouped by function
   │   ├── hooks/             # Custom React hooks
   │   ├── lib/               # Utility functions and libraries
+  │   ├── pages/runtime/     # Expandable execution/eval evidence and visualization
+  │   ├── types/runtime.ts   # Runtime API boundary types
   │   ├── pages/             # Application pages (each page in its own subdirectory)
   │   ├── App.tsx            # Main app component, sets up route providers
   │   ├── router.tsx         # Router config, sets up routing
   │   ├── main.tsx           # Entry point for the React app
   │   └── index.css          # Global styles
   ├── package.json           # Project metadata and scripts
+  ├── runtime/               # FastAPI, LangGraph, Pydantic AI/Evals, FastMCP
   ├── tailwind.config.ts     # Tailwind CSS configuration
   └── ...                    # Other config and lock files
 ```
@@ -28,6 +31,9 @@ project-root/
   - *Group related components into subdirectories if they share a domain or feature (e.g., `form/`, `charts/`).*
 - **src/hooks/**: Custom React hooks. Each file should export a single hook focused on one responsibility.
 - **src/lib/**: Utility functions and libraries that are not React components or hooks.
+- **src/pages/runtime/**: Expanded execution, approvals, replay, and eval reports launched from the simulator Results panel.
+- **runtime/reagent_runtime/**: Typed Python contracts, workflow compiler, execution engine, provenance oracle, storage, eval suite, and API.
+- **runtime/tests/**: Runtime, compiler, replay, approval, MCP/eval, and API regression tests.
 - **src/pages/**: All route-level pages.  
   - *Each page should have its own subdirectory if it contains more than a single file or has related logic/components.*
 - **src/App.tsx**: Sets up global providers.

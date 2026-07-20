@@ -24,6 +24,7 @@ import { getModelById } from "@/data/models";
 import { toast } from "sonner";
 import { vibrateTap } from "@/lib/vibrate";
 import type { SimNode, SimEdge, SimNodeType } from "@/types/simulator";
+import { useAssuranceStore } from "@/store/assuranceStore";
 
 const nodeTypes = {
   simNode: SimulatorNode,
@@ -40,7 +41,7 @@ function computeCostRatios(simNodes: SimNode[]): Map<string, number> {
   simNodes.forEach((n) => {
     if (n.config.model) {
       const model = getModelById(n.config.model);
-      const cost = model ? model.costPer1kTokens : 0;
+      const cost = model ? model.inputPricePerMillion + model.outputPricePerMillion : 0;
       costs.set(n.id, cost);
       if (cost > maxCost) maxCost = cost;
     }
@@ -72,7 +73,6 @@ function buildFlowNodes(simNodes: SimNode[], simEdges: SimEdge[], selectedNodeId
       contextGateMode: n.config.contextGateMode,
       isDisconnected: disconnected.includes(n.id),
       costRatio: costRatios.get(n.id) ?? 0,
-      hasOutputSchema: !!n.config.outputSchema,
       hasHandoffBrief: n.type === "context_gate" && !!n.config.handoffBrief,
     },
   }));
@@ -160,6 +160,11 @@ function CanvasInner() {
       target: connection.target!,
       sourceHandle: connection.sourceHandle ?? undefined,
       targetHandle: connection.targetHandle ?? undefined,
+      kind: connection.sourceHandle === "rejected" && sourceNode.config.typedHandoffGate?.rejectBehavior === "request_revision"
+        ? "retry"
+        : connection.sourceHandle === "rejected" || connection.sourceHandle === "failed" || connection.sourceHandle === "failure"
+          ? "failure"
+          : "normal",
     });
     vibrateTap();
   }, []);
@@ -208,10 +213,38 @@ function CanvasInner() {
       const id = `${type}-${Date.now()}`;
       const existingCount = store.nodes.filter((n) => n.type === type).length;
 
+      const config = structuredClone(meta.defaultConfig) as SimNode["config"];
+      const capabilities = useAssuranceStore.getState().capabilities;
+      const compatibleOperations = capabilities?.operations.filter((operation) => operation.node_type === type) ?? [];
+      if (useAssuranceStore.getState().enabled && compatibleOperations.length === 1) {
+        const operation = compatibleOperations[0];
+        Object.assign(config, operation.default_config ?? {}, {
+          assuranceOperationId: operation.operation_id,
+          assuranceOperationVersion: operation.operation_version,
+        });
+      }
+      if (type === "typed_handoff_gate" && capabilities?.handoff_contracts.length === 1) {
+        const contract = capabilities.handoff_contracts[0];
+        config.typedHandoffGate = {
+          contractId: contract.contract_id,
+          contractVersion: contract.contract_version,
+          validationMethod: "validate_python",
+          strict: true,
+          rejectBehavior: "route",
+        };
+      }
+      if (type === "evidence_check" && capabilities?.evidence_checks.length === 1) {
+        config.evidenceCheck = {
+          checkIds: [capabilities.evidence_checks[0].check_id],
+          aggregation: "all",
+          checkWeights: {},
+          failureBehavior: "route",
+        };
+      }
       store.addNode({
         id,
         type,
-        config: { ...meta.defaultConfig, label: `${meta.label} ${existingCount + 1}` },
+        config: { ...config, label: `${meta.label} ${existingCount + 1}` },
         position,
       });
       store.selectNode(id);

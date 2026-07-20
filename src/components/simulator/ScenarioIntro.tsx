@@ -357,10 +357,10 @@ export function ScenarioIntro({ scenario, onDismiss }: ScenarioIntroProps) {
                 </div>
                 <div>
                   <div className="text-xs font-mono font-bold text-foreground">
-                    {scenario.minReliability}%
+                    {scenario.minReliability}/100
                   </div>
                   <div className="text-[10px] text-muted-foreground">
-                    Min reliability
+                    Readiness target
                   </div>
                 </div>
               </div>

@@ -1,261 +1,183 @@
-import { useMemo } from "react";
-import {
-  ReactFlow,
-  Background,
-  Controls,
-  type Node,
-  type Edge,
-} from "@xyflow/react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import "@xyflow/react/dist/style.css";
-import {
-  Brain,
-  CheckCircle,
-  GitBranch,
-  Globe,
-  FileText,
-  Database,
-  Terminal,
-  Webhook,
-  UserCheck,
-  Server,
-  ArrowDownToLine,
-  ArrowUpFromLine,
-  Filter,
-  ShieldAlert,
-  TrendingDown,
-  TrendingUp,
-  DollarSign,
-  Clock,
-  Shield,
-} from "lucide-react";
+import "./architect.css";
+import { CirclePlay, Pause, Play, RefreshCcw, RotateCcw, ShieldAlert } from "lucide-react";
+import WorkflowCanvas from "./WorkflowCanvas";
+import NodeInspector from "./NodeInspector";
+import BlockPalette from "./BlockPalette";
+import PreviewTimeline from "./PreviewTimeline";
+import { constraintMapEvidence, structuralEvidence } from "@/features/architect/graph";
+import { PREVIEW_TRANSITION_MS, startPreviewTransitionDriver, subscribePreviewVisibility } from "@/features/architect/preview";
+import type { ArchitectAction, ArchitectState } from "@/features/architect/architectReducer";
+import type { PolicyNodeKind } from "@/features/architect/types";
 
-interface WorkflowNode {
-  id: string;
-  type: string;
-  label: string;
-  config: Record<string, unknown>;
-  position: { x: number; y: number };
-}
+function usePreviewDriver(state: ArchitectState, dispatch: React.Dispatch<ArchitectAction>) {
+  const elapsedRef = useRef(state.run.elapsedMs);
+  elapsedRef.current = state.run.elapsedMs;
+  const status = state.run.status;
+  const transitionIndex = state.run.transitionIndex;
 
-interface WorkflowEdge {
-  id: string;
-  source: string;
-  target: string;
-}
-
-interface NaiveMetrics {
-  model: string;
-  estimatedCost: number;
-  estimatedLatency: number;
-  estimatedReliability: number;
-  whyItFails: string;
-}
-
-interface WorkflowData {
-  summary: string;
-  principlesApplied: string[];
-  nodes: WorkflowNode[];
-  edges: WorkflowEdge[];
-  metrics: {
-    estimatedCost: number;
-    estimatedLatency: number;
-    estimatedReliability: number;
-  };
-  naive: NaiveMetrics;
-}
-
-const typeIcons: Record<string, typeof Brain> = {
-  executor: Brain,
-  evaluator: CheckCircle,
-  router: GitBranch,
-  web_search: Globe,
-  file_rw: FileText,
-  tool_rag: Database,
-  code_exec: Terminal,
-  api_call: Webhook,
-  human_review: UserCheck,
-  mcp_server: Server,
-  context_gate: Filter,
-  fallback_router: ShieldAlert,
-  input: ArrowDownToLine,
-  output: ArrowUpFromLine,
-};
-
-const typeColors: Record<string, string> = {
-  executor: "#8b5cf6",
-  evaluator: "#22c55e",
-  router: "#f59e0b",
-  web_search: "#06b6d4",
-  file_rw: "#06b6d4",
-  tool_rag: "#06b6d4",
-  code_exec: "#06b6d4",
-  api_call: "#06b6d4",
-  human_review: "#eab308",
-  mcp_server: "#818cf8",
-  context_gate: "#f97316",
-  fallback_router: "#ef4444",
-  input: "#6b7280",
-  output: "#6b7280",
-};
-
-export default function WorkflowResult({ data }: { data: WorkflowData }) {
-  const { flowNodes, flowEdges } = useMemo(() => {
-    const fNodes: Node[] = data.nodes.map((n) => {
-      const Icon = typeIcons[n.type] || Brain;
-      const color = typeColors[n.type] || "#6b7280";
-      return {
-        id: n.id,
-        position: n.position,
-        data: {
-          label: (
-            <div className="flex items-center gap-1.5 px-2 py-1.5">
-              <Icon size={14} style={{ color }} />
-              <span className="text-xs font-medium text-foreground whitespace-nowrap">
-                {n.label}
-              </span>
-              {n.config?.model && (
-                <span className="text-[10px] text-muted-foreground ml-1">
-                  {String(n.config.model)}
-                </span>
-              )}
-            </div>
-          ),
-        },
-        style: {
-          background: "hsl(224 24% 12%)",
-          border: `1.5px solid ${color}40`,
-          borderRadius: "8px",
-          boxShadow: `0 2px 8px ${color}20`,
-        },
-      };
+  useEffect(() => {
+    if (status !== "running") return;
+    return startPreviewTransitionDriver(elapsedRef.current, {
+      onTick: (elapsedMs) => dispatch({ type: "PREVIEW_TICK", elapsedMs }),
+      onComplete: () => dispatch({ type: "COMPLETE_TRANSITION" }),
     });
+  }, [dispatch, status, transitionIndex]);
 
-    const fEdges: Edge[] = data.edges.map((e) => ({
-      id: e.id,
-      source: e.source,
-      target: e.target,
-      style: { stroke: "hsl(220 12% 30%)", strokeWidth: 1.5 },
-      animated: true,
-    }));
+  useEffect(() => {
+    return subscribePreviewVisibility(
+      () => dispatch({ type: "PAUSE_PREVIEW", byVisibility: true }),
+      () => dispatch({ type: "RESUME_PREVIEW", fromVisibility: true }),
+    );
+  }, [dispatch]);
+}
 
-    return { flowNodes: fNodes, flowEdges: fEdges };
-  }, [data]);
+export default function WorkflowResult({
+  state,
+  dispatch,
+}: {
+  state: ArchitectState;
+  dispatch: React.Dispatch<ArchitectAction>;
+}) {
+  const graph = state.graph!;
+  const evidence = structuralEvidence(graph);
+  const constraints = constraintMapEvidence(graph);
+  const [selectedPolicyKind, setSelectedPolicyKind] = useState<PolicyNodeKind | null>(null);
+  const [draggingPolicyKind, setDraggingPolicyKind] = useState<PolicyNodeKind | null>(null);
+  usePreviewDriver(state, dispatch);
 
-  const costSaving = data.naive.estimatedCost > 0
-    ? Math.round((1 - data.metrics.estimatedCost / data.naive.estimatedCost) * 100)
-    : 0;
-  const latencySaving = data.naive.estimatedLatency > 0
-    ? Math.round((1 - data.metrics.estimatedLatency / data.naive.estimatedLatency) * 100)
-    : 0;
-  const reliabilityGain = data.metrics.estimatedReliability - data.naive.estimatedReliability;
+  const insertPolicy = useCallback((edgeId: string, kind: PolicyNodeKind) => {
+    dispatch({ type: "INSERT_POLICY_ON_SLOT", edgeId, kind });
+    setSelectedPolicyKind(null);
+    setDraggingPolicyKind(null);
+  }, [dispatch]);
+
+  useEffect(() => {
+    if (!state.focusTarget) return;
+    const element = document.getElementById(state.focusTarget);
+    element?.focus();
+    dispatch({ type: "CLEAR_FOCUS_TARGET" });
+  }, [dispatch, state.focusTarget]);
+
+  const run = state.run;
+  const canPause = run.status === "running";
+  const canResume = run.status === "paused";
+  const currentTransition = run.plan?.transitions[run.transitionIndex];
+  const announcement = run.status === "running"
+    ? `Preview transition ${run.transitionIndex + 1} running for nodes ${currentTransition?.targetNodeIds.join(", ") ?? "none"} across edges ${currentTransition?.edgeIds.join(", ") ?? "none"}.`
+    : run.status === "paused"
+      ? `Preview paused at ${Math.round((run.elapsedMs / PREVIEW_TRANSITION_MS) * 100)} percent.`
+      : run.status === "complete"
+        ? `Preview complete with ${run.timeline.length} symbolic steps.`
+        : run.status === "stale"
+          ? "Preview evidence is stale because the graph changed."
+          : "Preview idle.";
 
   return (
-    <div className="space-y-6">
-      {/* Summary */}
-      <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
-        <p className="text-sm text-foreground font-medium">{data.summary}</p>
-        <div className="flex flex-wrap gap-2 mt-2">
-          {data.principlesApplied.map((p, i) => (
-            <span
-              key={i}
-              className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20"
-            >
-              {p}
-            </span>
-          ))}
+    <section id="architect-workspace" tabIndex={-1} className="architect-workspace" aria-labelledby="architect-workspace-title">
+      <div className="architect-disclosure">
+        <div>
+          <div className="architect-title-row">
+            <h2 id="architect-workspace-title">Local workflow draft</h2>
+            <span className={`architect-badge architect-badge--${state.draftStatus}`}>{state.draftStatus}</span>
+            {graph.origin === "local_fallback" && (
+              <span className="architect-badge architect-badge--fallback"><ShieldAlert size={13} aria-hidden="true" /> Fallback</span>
+            )}
+          </div>
+          <p>This draft maps recognized steps and discloses ambiguity. It is not a proof of execution.</p>
+          {state.promptStatus === "description_changed" && (
+            <p className="architect-inline-warning">The description changed after this draft was built. Your visible graph and edits are preserved.</p>
+          )}
+        </div>
+        <div className="architect-run-controls">
+          <div className="architect-run-actions">
+            <button type="button" onClick={() => dispatch({ type: "START_PREVIEW" })} disabled={run.status === "running" || run.status === "paused"}>
+              <CirclePlay size={16} aria-hidden="true" /> Run preview
+            </button>
+            {canPause && (
+              <button type="button" onClick={() => dispatch({ type: "PAUSE_PREVIEW" })}>
+                <Pause size={16} aria-hidden="true" /> Pause
+              </button>
+            )}
+            {canResume && (
+              <button type="button" onClick={() => dispatch({ type: "RESUME_PREVIEW" })}>
+                <Play size={16} aria-hidden="true" /> Resume
+              </button>
+            )}
+            <button type="button" onClick={() => dispatch({ type: "RESET_PREVIEW" })} disabled={run.status === "idle"}>
+              <RotateCcw size={16} aria-hidden="true" /> Reset
+            </button>
+            <button type="button" onClick={() => dispatch({ type: "REQUEST_COMPILE" })}>
+              <RefreshCcw size={16} aria-hidden="true" /> Reset from description
+            </button>
+          </div>
+          <p className="architect-local-notice">Deterministic local simulation—no external tools are called</p>
         </div>
       </div>
 
-      {/* Before / After comparison */}
-      <div className="grid grid-cols-2 gap-4">
-        {/* Naive */}
-        <div className="p-4 rounded-lg bg-destructive/5 border border-destructive/20">
-          <div className="flex items-center gap-2 mb-3">
-            <TrendingDown className="h-4 w-4 text-destructive" />
-            <h3 className="text-sm font-semibold text-destructive">Naive: Single {data.naive.model}</h3>
-          </div>
-          <div className="space-y-2 text-xs">
-            <div className="flex justify-between">
-              <span className="flex items-center gap-1 text-muted-foreground">
-                <DollarSign className="h-3 w-3" /> Cost
-              </span>
-              <span className="text-destructive font-mono">${data.naive.estimatedCost.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="flex items-center gap-1 text-muted-foreground">
-                <Clock className="h-3 w-3" /> Latency
-              </span>
-              <span className="text-destructive font-mono">{data.naive.estimatedLatency.toFixed(1)}s</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="flex items-center gap-1 text-muted-foreground">
-                <Shield className="h-3 w-3" /> Reliability
-              </span>
-              <span className="text-destructive font-mono">{data.naive.estimatedReliability}%</span>
-            </div>
-          </div>
-          <p className="mt-3 text-[11px] text-muted-foreground leading-relaxed">{data.naive.whyItFails}</p>
-        </div>
+      <details className="architect-notes" open={graph.extractionNotes.length > 0}>
+        <summary>Extraction notes ({graph.extractionNotes.length})</summary>
+        {graph.extractionNotes.length ? (
+          <ul>{graph.extractionNotes.map((note) => <li key={note.id}><strong>{note.kind}:</strong> {note.message}</li>)}</ul>
+        ) : <p>No extraction ambiguity was recorded.</p>}
+      </details>
 
-        {/* Optimized */}
-        <div className="p-4 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
-          <div className="flex items-center gap-2 mb-3">
-            <TrendingUp className="h-4 w-4 text-emerald-400" />
-            <h3 className="text-sm font-semibold text-emerald-400">Optimized: {data.nodes.length} Nodes</h3>
-          </div>
-          <div className="space-y-2 text-xs">
-            <div className="flex justify-between">
-              <span className="flex items-center gap-1 text-muted-foreground">
-                <DollarSign className="h-3 w-3" /> Cost
-              </span>
-              <span className="text-emerald-400 font-mono">
-                ${data.metrics.estimatedCost.toFixed(2)}
-                <span className="text-emerald-500 ml-1">(-{costSaving}%)</span>
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="flex items-center gap-1 text-muted-foreground">
-                <Clock className="h-3 w-3" /> Latency
-              </span>
-              <span className="text-emerald-400 font-mono">
-                {data.metrics.estimatedLatency.toFixed(1)}s
-                <span className="text-emerald-500 ml-1">(-{latencySaving}%)</span>
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="flex items-center gap-1 text-muted-foreground">
-                <Shield className="h-3 w-3" /> Reliability
-              </span>
-              <span className="text-emerald-400 font-mono">
-                {data.metrics.estimatedReliability}%
-                <span className="text-emerald-500 ml-1">(+{reliabilityGain}%)</span>
-              </span>
-            </div>
-          </div>
-        </div>
+      <div className="architect-editor-layout">
+        <BlockPalette
+          selectedKind={selectedPolicyKind}
+          graph={graph}
+          onSelect={setSelectedPolicyKind}
+          onInsertPolicy={insertPolicy}
+          onDragStart={(kind, event) => {
+            event.dataTransfer.setData("application/x-architect-policy-block", kind);
+            event.dataTransfer.effectAllowed = "copy";
+            setDraggingPolicyKind(kind);
+          }}
+          onDragEnd={() => setDraggingPolicyKind(null)}
+        />
+        <WorkflowCanvas
+          state={state}
+          dispatch={dispatch}
+          selectedPolicyKind={selectedPolicyKind}
+          draggingPolicyKind={draggingPolicyKind}
+          onInsertPolicy={insertPolicy}
+        />
+        <NodeInspector state={state} dispatch={dispatch} />
       </div>
 
-      {/* Architecture graph */}
-      <div className="rounded-lg border border-border overflow-hidden" style={{ height: 400 }}>
-        <ReactFlow
-          nodes={flowNodes}
-          edges={flowEdges}
-          fitView
-          fitViewOptions={{ padding: 0.3 }}
-          proOptions={{ hideAttribution: true }}
-          nodesDraggable={false}
-          nodesConnectable={false}
-          elementsSelectable={false}
-          panOnDrag
-          zoomOnScroll
-        >
-          <Background color="hsl(220 12% 18%)" gap={20} />
-          <Controls
-            showInteractive={false}
-            className="!bg-card !border-border !rounded-lg"
-          />
-        </ReactFlow>
-      </div>
-    </div>
+      <PreviewTimeline state={state} />
+
+      <section className="architect-panel architect-evidence" aria-labelledby="architect-evidence-title">
+        <div className="architect-panel__heading">
+          <div>
+            <h3 id="architect-evidence-title">Constraint map</h3>
+            <p>Configured decisions and unresolved policy choices in this local draft.</p>
+          </div>
+        </div>
+        <dl className="architect-decision-evidence">
+          <div><dt>Schema contracts</dt><dd>{constraints.schemaGateCount}</dd></div>
+          <div><dt>Context boundaries</dt><dd>{constraints.contextBoundaryCount}</dd></div>
+          <div><dt>Human reviews</dt><dd>{constraints.humanReviewCount}</dd></div>
+          <div><dt>Routers</dt><dd>{constraints.routerCount}</dd></div>
+          <div><dt>Unresolved policy choices</dt><dd>{constraints.unresolvedDecisionSlotCount}</dd></div>
+        </dl>
+        <details className="architect-graph-facts">
+          <summary>Graph facts</summary>
+          <dl>
+            <div><dt>Nodes</dt><dd>{evidence.nodeCount}</dd></div>
+            <div><dt>Edges</dt><dd>{evidence.edgeCount}</dd></div>
+            <div><dt>Critical path</dt><dd>{evidence.criticalPathLength}</dd></div>
+          </dl>
+        </details>
+        <p className="architect-policy-disclaimer">
+          Configured policy only; this preview does not enforce live schemas or measure tokens.
+        </p>
+        <p className="architect-not-measured">
+          Task correctness, reliability, real cost/latency, factuality, and live effects are not measured.
+        </p>
+      </section>
+      <div className="sr-only" aria-live="polite" aria-atomic="true">{announcement}</div>
+    </section>
   );
 }

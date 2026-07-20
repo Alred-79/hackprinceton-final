@@ -116,7 +116,7 @@ export const threatAnalyst: Scenario = {
   llmThresholds: { minPromptScore: 60, minArchitectureScore: 65 },
   editorial: {
     explanation:
-      "Consolidate 5 single-tool MCPs into 1 Intel MCP (web_search, tool_rag, api_call → 3 tools = bonus). Keep file_rw and code_exec as standalone tools. Handle the unreliable threat feed with a Fallback Router + Gap Noter. Merge all data through a Context Gate (structured sendoff) to filter noise. Route by severity (Critical/Standard) with a lightweight model. Critical briefs get a capable model + output schema + Human Review. Both paths feed an Evaluator; fail path loops through a Revision Context Gate. Dispatch alerts via Kafka Stream. Every node serves the narrative — nothing is forced.",
+      "Consolidate 5 single-tool MCPs into 1 Intel MCP (web search, Knowledge Retrieval, and API calls). Keep file and code operations as standalone tools. Handle the unreliable threat feed with a Fallback Router + Gap Noter. Merge all data through a Context Gate (structured sendoff) to filter noise. Route by severity (Critical/Standard) with a lightweight model. Critical briefs get a capable model + Output Contract + Human Review. Both paths feed an Evaluator; fail path loops through a Revision Context Gate. Dispatch alerts via Kafka Stream. Every node serves the narrative — nothing is forced.",
     commonMistakes: [
       { mistake: "Keeping 5 single-tool MCPs", whyItFails: "Each MCP adds $0.30 coordination overhead. With 1 tool each, you pay the overhead for zero benefit — 5 × penalty" },
       { mistake: "Keeping Claude Opus on all executors", whyItFails: "Classification and gap-noting are simple tasks. Opus costs $15/1k tokens for work a $0.15 model handles perfectly" },

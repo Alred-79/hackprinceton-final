@@ -12,9 +12,10 @@ export interface NodeTypeMeta {
   maxInputs: number;
   maxOutputs: number;
   defaultConfig: Record<string, unknown>;
+  capability: "design_only" | "executable";
 }
 
-export const NODE_TYPE_META: Record<SimNodeType, NodeTypeMeta> = {
+const RAW_NODE_TYPE_META: Record<SimNodeType, Omit<NodeTypeMeta, "capability">> = {
   input: {
     type: "input",
     label: "Input",
@@ -121,8 +122,8 @@ export const NODE_TYPE_META: Record<SimNodeType, NodeTypeMeta> = {
   },
   tool_rag: {
     type: "tool_rag",
-    label: "Tool RAG",
-    description: "Retrieval-Augmented Generation from knowledge base",
+    label: "Knowledge Retrieval",
+    description: "Deterministic one-run retrieval fixture over registered knowledge",
     category: "tool",
     color: "node-tool",
     icon: "Database",
@@ -130,7 +131,7 @@ export const NODE_TYPE_META: Record<SimNodeType, NodeTypeMeta> = {
     hasPrompt: false,
     maxInputs: 5,
     maxOutputs: 5,
-    defaultConfig: { label: "Tool RAG", kValue: 5 },
+    defaultConfig: { label: "Knowledge Retrieval", kValue: 5, retrievalMode: "hybrid" },
   },
   fallback_router: {
     type: "fallback_router",
@@ -210,7 +211,57 @@ export const NODE_TYPE_META: Record<SimNodeType, NodeTypeMeta> = {
     maxOutputs: 5,
     defaultConfig: { label: "Kafka Stream" },
   },
+  typed_handoff_gate: {
+    type: "typed_handoff_gate",
+    label: "Typed Handoff Gate",
+    description: "Validates a handoff with a registered Pydantic TypeAdapter contract",
+    category: "control",
+    color: "node-context",
+    icon: "Braces",
+    hasModel: false,
+    hasPrompt: false,
+    maxInputs: 1,
+    maxOutputs: 2,
+    defaultConfig: {
+      label: "Typed Handoff Gate",
+      typedHandoffGate: {
+        contractId: "",
+        contractVersion: "1.0.0",
+        validationMethod: "validate_python",
+        strict: true,
+        rejectBehavior: "route",
+      },
+    },
+  },
+  evidence_check: {
+    type: "evidence_check",
+    label: "Evidence Check",
+    description: "Runs independent registered grounding, policy, or task checks",
+    category: "brain",
+    color: "node-evaluator",
+    icon: "ShieldCheck",
+    hasModel: false,
+    hasPrompt: false,
+    maxInputs: 1,
+    maxOutputs: 2,
+    defaultConfig: {
+      label: "Evidence Check",
+      evidenceCheck: {
+        checkIds: [],
+        aggregation: "all",
+        checkWeights: {},
+        failureBehavior: "route",
+      },
+    },
+  },
 };
+
+export const NODE_TYPE_META = Object.fromEntries(
+  Object.entries(RAW_NODE_TYPE_META).map(([type, meta]) => [
+    type,
+    { ...meta, capability: "design_only" as const },
+  ]),
+) as Record<SimNodeType, NodeTypeMeta>;
 
 // Connection validation rules
 export function canConnect(sourceType: SimNodeType, targetType: SimNodeType): boolean {

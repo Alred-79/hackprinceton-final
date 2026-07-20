@@ -1,0 +1,35 @@
+[project]
+name = "reagent-runtime"
+version = "0.1.0"
+description = "Executable LangGraph and Pydantic AI runtime for ReAgent"
+requires-python = ">=3.12,<3.15"
+dependencies = [
+  "aiosqlite>=0.21",
+  "fastapi>=0.116",
+  "fastmcp>=2.12",
+  "langgraph>=1.0",
+  "langgraph-checkpoint-sqlite>=2.0",
+  "pydantic-ai==2.13.0",
+  "pydantic-evals>=1.0",
+  "uvicorn[standard]>=0.35",
+]
+
+[dependency-groups]
+dev = [
+  "httpx>=0.28",
+  "pytest>=8.4",
+  "pytest-asyncio>=1.1",
+  "ruff>=0.12",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]

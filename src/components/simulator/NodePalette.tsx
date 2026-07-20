@@ -1,12 +1,15 @@
 import { NODE_TYPE_META } from "@/data/nodeTypes";
 import { useSimulatorStore } from "@/store/simulatorStore";
-import { Brain, CheckCircle, GitBranch, Globe, FileText, Filter, Database, Shield, GripVertical, Terminal, Webhook, UserCheck, Server, Radio } from "lucide-react";
+import { Brain, Braces, CheckCircle, GitBranch, Globe, FileText, Filter, Database, Shield, ShieldCheck, GripVertical, Terminal, Webhook, UserCheck, Server, Radio, Info } from "lucide-react";
 import type { SimNodeType } from "@/types/simulator";
 import { cn } from "@/lib/utils";
 import { vibrateTap } from "@/lib/vibrate";
+import { useAssuranceStore } from "@/store/assuranceStore";
+import { assuranceNodeTypeSupport } from "@/lib/assuranceCapabilities";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const ICON_MAP: Record<string, React.FC<{ className?: string }>> = {
-  Brain, CheckCircle, GitBranch, Globe, FileText, Filter, Database, Shield, Terminal, Webhook, UserCheck, Server, Radio,
+  Brain, Braces, CheckCircle, GitBranch, Globe, FileText, Filter, Database, Shield, ShieldCheck, Terminal, Webhook, UserCheck, Server, Radio,
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -38,10 +41,16 @@ export function NodePalette() {
   const selectNode = useSimulatorStore((s) => s.selectNode);
   const nodes = useSimulatorStore((s) => s.nodes);
   const isEvaluating = useSimulatorStore((s) => s.isEvaluating);
+  const assuranceEnabled = useAssuranceStore((s) => s.enabled);
+  const assuranceCapabilities = useAssuranceStore((s) => s.capabilities);
 
   if (!scenario) return null;
 
-  const available = scenario.availableNodeTypes.filter((t) => t !== "input" && t !== "output");
+  const assuranceTypes: SimNodeType[] = assuranceEnabled
+    ? ["typed_handoff_gate", "evidence_check"]
+    : [];
+  const available = [...new Set([...scenario.availableNodeTypes, ...assuranceTypes])]
+    .filter((t) => t !== "input" && t !== "output");
 
   // Group by category
   const grouped = CATEGORY_ORDER.map((cat) => ({
@@ -56,10 +65,37 @@ export function NodePalette() {
     const id = `${type}-${Date.now()}`;
     const existingCount = nodes.filter((n) => n.type === type).length;
 
+    const config = structuredClone(meta.defaultConfig) as Record<string, unknown>;
+    const compatibleOperations = assuranceCapabilities?.operations.filter((operation) => operation.node_type === type) ?? [];
+    if (assuranceEnabled && compatibleOperations.length === 1) {
+      const operation = compatibleOperations[0];
+      Object.assign(config, operation.default_config ?? {}, {
+        assuranceOperationId: operation.operation_id,
+        assuranceOperationVersion: operation.operation_version,
+      });
+    }
+    if (type === "typed_handoff_gate" && assuranceCapabilities?.handoff_contracts.length === 1) {
+      const contract = assuranceCapabilities.handoff_contracts[0];
+      config.typedHandoffGate = {
+        contractId: contract.contract_id,
+        contractVersion: contract.contract_version,
+        validationMethod: "validate_python",
+        strict: true,
+        rejectBehavior: "route",
+      };
+    }
+    if (type === "evidence_check" && assuranceCapabilities?.evidence_checks.length === 1) {
+      config.evidenceCheck = {
+        checkIds: [assuranceCapabilities.evidence_checks[0].check_id],
+        aggregation: "all",
+        checkWeights: {},
+        failureBehavior: "route",
+      };
+    }
     addNode({
       id,
       type,
-      config: { ...meta.defaultConfig, label: `${meta.label} ${existingCount + 1}` },
+      config: { ...config, label: `${meta.label} ${existingCount + 1}` },
       position: { x: 300 + Math.random() * 200, y: 150 + Math.random() * 300 },
     });
     selectNode(id);
@@ -76,6 +112,7 @@ export function NodePalette() {
   };
 
   return (
+    <TooltipProvider delayDuration={120}>
     <div className="space-y-3">
       {grouped.map((group) => {
         const accent = categoryAccents[group.category] || categoryAccents.brain;
@@ -91,13 +128,16 @@ export function NodePalette() {
               {group.types.map((type) => {
                 const meta = NODE_TYPE_META[type];
                 const Icon = ICON_MAP[meta.icon] || Brain;
+                const support = assuranceNodeTypeSupport(type, assuranceCapabilities);
+                const assuranceUnavailable = assuranceEnabled && !support.supported;
                 return (
                   <button
                     key={type}
-                    disabled={isEvaluating}
-                    draggable={!isEvaluating}
+                    disabled={isEvaluating || assuranceUnavailable}
+                    draggable={!isEvaluating && !assuranceUnavailable}
                     onClick={() => handleAddNode(type)}
                     onDragStart={(e) => onDragStart(e, type)}
+                    title={assuranceUnavailable ? support.reason : meta.description}
                     className={cn(
                       "w-full flex items-center gap-2 rounded-lg border px-2 py-2 text-left",
                       "transition-all text-xs group",
@@ -110,6 +150,7 @@ export function NodePalette() {
                     <GripVertical className="h-3 w-3 shrink-0 text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors" />
                     <Icon className="h-3.5 w-3.5 shrink-0" />
                     <span className="font-medium text-foreground text-[11px]">{meta.label}</span>
+                    {type === "tool_rag" && <Tooltip><TooltipTrigger asChild><span role="img" aria-label="Knowledge Retrieval information" onClick={(event) => event.stopPropagation()} className="ml-auto rounded-full border border-cyan-400/20 bg-cyan-400/[0.08] p-0.5 text-cyan-300"><Info className="h-2.5 w-2.5" /></span></TooltipTrigger><TooltipContent side="right" className="max-w-64 border-cyan-400/20 bg-popover/95 p-2.5"><p className="text-[10px] font-medium text-cyan-200">Deterministic one-time stub</p><p className="mt-1 text-[9px] leading-4 text-muted-foreground">Choose BM25, token-hash vector, or hybrid ranking over a frozen teaching corpus. The stub is inspectable and replayable—not a production embedding service.</p></TooltipContent></Tooltip>}
                   </button>
                 );
               })}
@@ -118,5 +159,6 @@ export function NodePalette() {
         );
       })}
     </div>
+    </TooltipProvider>
   );
 }

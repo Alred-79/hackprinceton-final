@@ -23,3 +23,18 @@ dist-ssr
 *.sln
 *.sw?
 code_template.zip
+
+# Python runtime artifacts
+runtime/.venv/
+runtime/.data/
+runtime/.pytest_cache/
+runtime/.ruff_cache/
+runtime/**/__pycache__/
+*.pyc
+
+# Browser test artifacts
+test-results/
+playwright-report/
+
+# Local planning and audit artifacts
+outputs/

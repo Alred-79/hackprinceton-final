@@ -3,6 +3,7 @@ import ScenarioSelect from "./pages/ScenarioSelect";
 import Simulator from "./pages/Simulator";
 import WorkflowArchitect from "./pages/WorkflowArchitect";
 import NotFound from "./pages/NotFound";
+import { Navigate } from "react-router-dom";
 
 export const routers = [
     {
@@ -24,6 +25,11 @@ export const routers = [
       path: "/architect",
       name: 'architect',
       element: <WorkflowArchitect />,
+    },
+    {
+      path: "/lab",
+      name: 'legacy-runtime-lab',
+      element: <Navigate to="/simulator/threat-analyst?view=execute" replace />,
     },
     /* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */
     {

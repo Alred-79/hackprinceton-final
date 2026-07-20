@@ -20,15 +20,19 @@ import {
   Server,
   Radio,
   Braces,
+  ShieldCheck,
+  Info,
 } from "lucide-react";
 import type { SimNodeType } from "@/types/simulator";
 import { NODE_TYPE_META } from "@/data/nodeTypes";
 import { getModelById } from "@/data/models";
 import { useSimulatorStore } from "@/store/simulatorStore";
 import { cn } from "@/lib/utils";
+import { useAssuranceStore } from "@/store/assuranceStore";
+import { assuranceNodeVisualState } from "@/lib/assurancePresentation";
 
 const ICON_MAP: Record<string, React.FC<{ className?: string }>> = {
-  LogIn, LogOut, Brain, CheckCircle, GitBranch, Globe, FileText, Filter, Database, Shield, Terminal, Webhook, UserCheck, Server, Radio,
+  LogIn, LogOut, Brain, Braces, CheckCircle, GitBranch, Globe, FileText, Filter, Database, Shield, ShieldCheck, Terminal, Webhook, UserCheck, Server, Radio,
 };
 
 interface SimNodeData {
@@ -42,7 +46,6 @@ interface SimNodeData {
   isRunning?: boolean;
   optimizationScore?: number;
   costRatio?: number; // 0–1, 0 = cheapest, 1 = most expensive
-  hasOutputSchema?: boolean;
   hasHandoffBrief?: boolean;
 }
 
@@ -57,6 +60,8 @@ const EDITABLE_TYPES = new Set<SimNodeType>([
   "api_call",
   "human_review",
   "mcp_server",
+  "typed_handoff_gate",
+  "evidence_check",
 ]);
 
 function getModelScale(modelId?: string): number {
@@ -72,13 +77,12 @@ function getModelScale(modelId?: string): number {
   }
 }
 
-/** Returns reliability-based 3D elevation. Higher reliability = more elevated/prominent */
+/** Returns a visual elevation derived only from the selected model tier. */
 function getElevation(modelId?: string): number {
   if (!modelId) return 1;
   const model = getModelById(modelId);
   if (!model) return 1;
-  // reliability 0.88-0.99 maps to elevation 1-4
-  return 1 + ((model.reliability - 0.88) / 0.11) * 3;
+  return { small: 1, medium: 2, large: 3, xl: 4 }[model.tier];
 }
 
 /** Yellow (cheap) → Orange → Red (expensive) based on cost ratio */
@@ -114,6 +118,10 @@ const CATEGORY_COLORS: Record<string, string> = {
 
 function SimulatorNodeComponent({ id, data, selected }: SimNodeProps) {
   const meta = NODE_TYPE_META[data.simNodeType];
+  const simNode = useSimulatorStore((state) => state.nodes.find((node) => node.id === id));
+  const assuranceEnabled = useAssuranceStore((state) => state.enabled);
+  const assuranceRun = useAssuranceStore((state) => state.run);
+  const assuranceCapabilities = useAssuranceStore((state) => state.capabilities);
   const Icon = ICON_MAP[meta.icon] || Brain;
   const isEditable = EDITABLE_TYPES.has(data.simNodeType) && !data.locked;
   const costRatio = data.costRatio ?? 0;
@@ -155,6 +163,19 @@ function SimulatorNodeComponent({ id, data, selected }: SimNodeProps) {
   };
 
   const showContextWarning = data.simNodeType === "context_gate" && !data.contextGateMode;
+  const assuranceEvents = assuranceRun?.events.filter((event) => event.canvas_node_id === id) ?? [];
+  const assuranceVisualState = assuranceNodeVisualState(assuranceEvents, assuranceRun?.terminal_kind);
+  const assuranceRecovered = assuranceVisualState === "recovered";
+  const assuranceFailed = assuranceVisualState === "failed";
+  const assurancePassed = assuranceVisualState === "passed";
+  const executorAssured = data.simNodeType === "executor" && simNode?.config.executorAssurance?.enabled;
+  const resolvedCapability = assuranceCapabilities?.operations.find((operation) =>
+    operation.node_type === data.simNodeType &&
+    operation.operation_id === simNode?.config.assuranceOperationId &&
+    operation.operation_version === simNode?.config.assuranceOperationVersion
+  );
+  const registeredInputs = resolvedCapability?.ports?.filter((port) => port.direction === "input") ?? [];
+  const registeredOutputs = resolvedCapability?.ports?.filter((port) => port.direction === "output") ?? [];
 
   // 3D shadows — elevation controls depth prominence
   const baseZ = elevation;
@@ -199,6 +220,9 @@ function SimulatorNodeComponent({ id, data, selected }: SimNodeProps) {
         "relative rounded-xl border-2 transition-all duration-200 group",
         colorClasses[meta.color] || "border-border bg-card",
         selected && "ring-2 ring-primary ring-offset-2 ring-offset-background",
+        assurancePassed && "ring-2 ring-emerald-400/70",
+        assuranceRecovered && "ring-2 ring-amber-400/80",
+        assuranceFailed && "ring-2 ring-red-400/80",
         isRunning && "sim-node-running"
       )}
       style={{
@@ -256,13 +280,16 @@ function SimulatorNodeComponent({ id, data, selected }: SimNodeProps) {
       )}
 
       {/* Input handles */}
-      {data.simNodeType !== "input" && (
+      {data.simNodeType !== "input" && (assuranceEnabled && registeredInputs.length ? registeredInputs : [{ id: undefined }]).map((port, index, items) => (
         <Handle
+          key={port.id ?? "legacy-input"}
           type="target"
           position={Position.Left}
+          id={data.simNodeType === "typed_handoff_gate" || data.simNodeType === "evidence_check" ? "in" : port.id}
+          style={items.length > 1 ? { top: `${((index + 1) / (items.length + 1)) * 100}%` } : undefined}
           className="!w-3 !h-3 !bg-muted-foreground !border-2 !border-background"
         />
-      )}
+      ))}
 
       {/* Node content — single line, no truncation */}
       <div className="flex items-center gap-2 whitespace-nowrap">
@@ -295,6 +322,16 @@ function SimulatorNodeComponent({ id, data, selected }: SimNodeProps) {
         >
           {data.label}
         </span>
+        <span
+          className="rounded border border-white/10 bg-black/20 px-1 py-0.5 text-[7px] uppercase tracking-wider text-muted-foreground"
+          title={assuranceEnabled ? "This node participates only when explicitly bound and compiled." : "This canvas node is design-only. Execute mode uses registered runtime nodes."}
+        >
+          {assuranceEnabled
+            ? (simNode?.config.assuranceOperationId || data.simNodeType === "typed_handoff_gate" || data.simNodeType === "evidence_check" ? "bound" : "unbound")
+            : data.simNodeType === "typed_handoff_gate" || data.simNodeType === "evidence_check"
+              ? "assurance off"
+              : "design"}
+        </span>
         {data.model && (
           <>
             <span className="text-muted-foreground/40">|</span>
@@ -320,12 +357,28 @@ function SimulatorNodeComponent({ id, data, selected }: SimNodeProps) {
         {data.locked && <Lock className="h-3 w-3 text-muted-foreground shrink-0" />}
         {data.isDisconnected && <AlertTriangle className="h-3 w-3 text-amber-400 shrink-0" />}
         {showContextWarning && <AlertTriangle className="h-3 w-3 text-orange-400 shrink-0" />}
-        {data.hasOutputSchema && (
-          <Braces className="h-2.5 w-2.5 text-cyan-400/70 shrink-0" title="Output schema defined" />
+        {data.simNodeType === "tool_rag" && (
+          <Info className="h-3 w-3 shrink-0 text-cyan-300/80" aria-label="Deterministic one-time stub" title="Deterministic one-time stub: BM25, token-hash vector, or hybrid retrieval over frozen teaching data. It is replayable and is not a production embedding service." />
         )}
         {data.hasHandoffBrief && (
           <FileText className="h-2.5 w-2.5 text-violet-400/70 shrink-0" title="Handoff brief defined" />
         )}
+        {executorAssured && (
+          <span className="rounded border border-cyan-400/30 bg-cyan-400/10 px-1 py-0.5 text-[7px] text-cyan-200">
+            {simNode?.config.executorAssurance?.contractId}
+          </span>
+        )}
+        {data.simNodeType === "typed_handoff_gate" && simNode?.config.typedHandoffGate?.contractId && (
+          <span className="rounded border border-orange-400/30 bg-orange-400/10 px-1 py-0.5 text-[7px] text-orange-200">
+            TypeAdapter · {simNode.config.typedHandoffGate.contractId}
+          </span>
+        )}
+        {data.simNodeType === "evidence_check" && (
+          <span className="rounded border border-violet-400/30 bg-violet-400/10 px-1 py-0.5 text-[7px] text-violet-200">
+            {simNode?.config.evidenceCheck?.checkIds.length ?? 0} checks
+          </span>
+        )}
+        {assuranceRecovered && <span className="rounded border border-amber-400/30 bg-amber-400/10 px-1 py-0.5 text-[7px] text-amber-200">recovered</span>}
       </div>
 
       {/* Bottom elevation bar — thicker = more 3D depth */}
@@ -348,7 +401,35 @@ function SimulatorNodeComponent({ id, data, selected }: SimNodeProps) {
       />
 
       {/* Output handles */}
-      {data.simNodeType === "router" && data.routes ? (
+      {data.simNodeType === "typed_handoff_gate" ? (
+        <>
+          <Handle type="source" position={Position.Right} id="pass" style={{ top: "33%" }} className="!h-3 !w-3 !border-2 !border-background !bg-emerald-400" />
+          <Handle type="source" position={Position.Right} id="rejected" style={{ top: "66%" }} className="!h-3 !w-3 !border-2 !border-background !bg-red-400" />
+        </>
+      ) : data.simNodeType === "evidence_check" ? (
+        <>
+          <Handle type="source" position={Position.Right} id="pass" style={{ top: "33%" }} className="!h-3 !w-3 !border-2 !border-background !bg-emerald-400" />
+          <Handle type="source" position={Position.Right} id="failed" style={{ top: "66%" }} className="!h-3 !w-3 !border-2 !border-background !bg-red-400" />
+        </>
+      ) : executorAssured ? (
+        <>
+          <Handle type="source" position={Position.Right} id="success" style={{ top: "33%" }} className="!h-3 !w-3 !border-2 !border-background !bg-emerald-400" />
+          <Handle type="source" position={Position.Right} id="failure" style={{ top: "66%" }} className="!h-3 !w-3 !border-2 !border-background !bg-red-400" />
+        </>
+      ) : assuranceEnabled && registeredOutputs.length ? (
+        <>
+          {registeredOutputs.map((port, index) => (
+            <Handle
+              key={port.id}
+              type="source"
+              position={Position.Right}
+              id={port.id}
+              style={{ top: `${((index + 1) / (registeredOutputs.length + 1)) * 100}%` }}
+              className={cn("!h-3 !w-3 !border-2 !border-background", /failure|error|rejected|failed/.test(port.id) ? "!bg-red-400" : "!bg-emerald-400")}
+            />
+          ))}
+        </>
+      ) : data.simNodeType === "router" && data.routes ? (
         data.routes.map((_, i) => (
           <Handle
             key={`route-${i}`}

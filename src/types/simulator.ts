@@ -18,11 +18,39 @@ export type SimNodeType =
   | "api_call"
   | "human_review"
   | "mcp_server"
-  | "kafka_stream";
+  | "kafka_stream"
+  | "typed_handoff_gate"
+  | "evidence_check";
 
-export type ContextGateMode = "full_reset" | "structured_sendoff";
+export type ContextGateMode = "pass_through" | "structured_sendoff" | "full_reset" | "compact";
 export type HumanReviewType = "approval" | "edit" | "escalation";
 export type ServedToolType = "web_search" | "file_rw" | "tool_rag" | "code_exec" | "api_call";
+export type KnowledgeRetrievalMode = "bm25" | "vector" | "hybrid";
+
+export interface ExecutorAssuranceConfig {
+  enabled: boolean;
+  contractId: string;
+  contractVersion: string;
+  strict: boolean;
+  outputMode: "tool" | "native" | "prompted";
+  validationRetries: number;
+}
+
+export interface TypedHandoffGateAssuranceConfig {
+  contractId: string;
+  contractVersion: string;
+  validationMethod: "validate_python" | "validate_json";
+  strict: boolean;
+  rejectBehavior: "route" | "stop" | "request_revision";
+}
+
+export interface EvidenceCheckAssuranceConfig {
+  checkIds: string[];
+  aggregation: "all" | "any" | "weighted";
+  checkWeights: Record<string, string>;
+  passingScore?: string;
+  failureBehavior: "route" | "stop";
+}
 
 export interface NodeConfig {
   label: string;
@@ -32,14 +60,22 @@ export interface NodeConfig {
   passFailCriteria?: string;
   routingPrompt?: string;
   routes?: string[];
+  /** @deprecated Imported legacy metadata; executable graphs use executorAssurance. */
   outputSchema?: string;
   contextGateMode?: ContextGateMode;
   handoffBrief?: string;
   kValue?: number;
+  retrievalMode?: KnowledgeRetrievalMode;
   tools?: string[];
   endpoint?: string;
+  validatorId?: string;
   reviewType?: HumanReviewType;
   servedTools?: ServedToolType[];
+  assuranceOperationId?: string;
+  assuranceOperationVersion?: string;
+  executorAssurance?: ExecutorAssuranceConfig;
+  typedHandoffGate?: TypedHandoffGateAssuranceConfig;
+  evidenceCheck?: EvidenceCheckAssuranceConfig;
 }
 
 export interface SimNode {
@@ -56,15 +92,21 @@ export interface SimEdge {
   target: string;
   sourceHandle?: string;
   targetHandle?: string;
+  kind?: "normal" | "conditional" | "failure" | "retry";
+  fanOut?: "all" | "exclusive";
+  routeProbability?: string;
+  maxAttempts?: number;
 }
 
 // --- Model Definitions ---
 export interface ModelDef {
   id: string;
   name: string;
-  costPer1kTokens: number;
-  avgLatency: number; // seconds
-  reliability: number; // 0-1
+  inputPricePerMillion: number;
+  outputPricePerMillion: number;
+  assumedLatencySeconds: number;
+  profileAsOf: string;
+  profileSource: "legacy_default_assumption";
   tier: "small" | "medium" | "large" | "xl";
   capabilities: string[];
 }
@@ -115,7 +157,18 @@ export interface Scenario {
 export interface DeterministicResults {
   cost: number;
   latency: number;
-  reliability: number;
+  scenarioReadiness: number;
+  metricLabels: {
+    cost: "estimate";
+    latency: "estimate";
+    scenarioReadiness: "heuristic";
+    taskPass: "not_measured";
+  };
+  intervals: {
+    cost: { low: number; high: number };
+    latency: { low: number; high: number };
+  };
+  assumptions: string[];
   bonuses: Array<{ label: string; value: number }>;
   penalties: Array<{ label: string; value: number }>;
   warnings: string[];
@@ -171,11 +224,12 @@ export interface TraceStep {
 
 // --- Progress ---
 export type ProgressStatus = "not_started" | "attempted" | "passed" | "optimal";
+export type ResultsTab = "analysis" | "execution" | "evals";
 
 export interface ScenarioProgress {
   status: ProgressStatus;
   attempts: number;
-  bestReliability?: number;
+  bestScenarioReadiness?: number;
   bestCost?: number;
   bestLatency?: number;
 }
@@ -211,4 +265,5 @@ export interface SimulatorState {
 
   // Right panel tab
   activeRightTab: "inspector" | "results";
+  activeResultsTab: ResultsTab;
 }
