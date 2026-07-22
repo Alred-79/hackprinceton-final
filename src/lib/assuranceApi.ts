@@ -16,7 +16,8 @@ import {
 } from "@/lib/assuranceSchemas";
 import type { ZodType } from "zod";
 
-const API_BASE = import.meta.env.VITE_RUNTIME_API_URL ?? "http://localhost:8000";
+const API_BASE = import.meta.env.VITE_RUNTIME_API_URL
+  ?? (import.meta.env.PROD ? "" : "http://localhost:8000");
 
 export const ASSURANCE_CLIENT_ENABLED = import.meta.env.VITE_ASSURANCE_V1 === "true";
 

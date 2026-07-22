@@ -6,6 +6,8 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from .engine import RUNTIME_BUILD_HASH, RuntimeEngine
 from .evals import EvalSuite
@@ -26,6 +28,16 @@ from .store import StoreError
 from .workflows import CONTRACT_REGISTRY, threat_workflow_spec, validate_workflow
 
 DATA_DIR = Path(os.getenv("REAGENT_DATA_DIR", Path(__file__).parents[1] / ".data"))
+STATIC_DIR = Path(os.getenv("REAGENT_STATIC_DIR", Path(__file__).parents[2] / "dist"))
+ALLOWED_ORIGINS = [
+    "http://localhost:8080",
+    "http://127.0.0.1:8080",
+    *[
+        origin.strip()
+        for origin in os.getenv("REAGENT_ALLOWED_ORIGINS", "").split(",")
+        if origin.strip()
+    ],
+]
 engine = RuntimeEngine(DATA_DIR)
 
 app = FastAPI(
@@ -38,7 +50,7 @@ app = FastAPI(
 )
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8080", "http://127.0.0.1:8080"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type"],
@@ -273,3 +285,27 @@ def run_evals(request: EvalRunRequest) -> EvalReport:
     if unknown:
         raise HTTPException(status_code=400, detail=f"Unknown eval cases: {sorted(unknown)}")
     return EvalSuite(engine).run(request.cases)
+
+
+def _register_frontend() -> None:
+    """Serve the production Vite build without shadowing API or OpenAPI routes."""
+    index = STATIC_DIR / "index.html"
+    if not index.is_file():
+        return
+
+    assets = STATIC_DIR / "assets"
+    if assets.is_dir():
+        app.mount("/assets", StaticFiles(directory=assets), name="frontend-assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    def frontend(full_path: str) -> FileResponse:
+        if full_path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="API route not found.")
+        requested = (STATIC_DIR / full_path).resolve()
+        static_root = STATIC_DIR.resolve()
+        if requested.is_file() and static_root in requested.parents:
+            return FileResponse(requested)
+        return FileResponse(index)
+
+
+_register_frontend()

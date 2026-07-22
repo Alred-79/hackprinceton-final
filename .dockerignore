@@ -1,0 +1,14 @@
+.git
+.github
+dist
+node_modules
+outputs
+playwright-report
+test-results
+runtime/.data
+runtime/.pytest_cache
+runtime/.ruff_cache
+runtime/.venv
+runtime/**/__pycache__
+*.log
+*.pyc

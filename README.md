@@ -10,6 +10,8 @@
 
 **Winner — HackPrinceton Spring 2026, Best Use of Enter.pro.** [View the original project on Devpost.](https://devpost.com/software/reagent)
 
+**Live deployment:** [Open ReAgent on Railway](https://reagent-production-4a20.up.railway.app)
+
 ReAgent turns an agent architecture from a hopeful diagram into an inspectable systems experiment. Engineers can generate or edit a workflow, place explicit schema/context/approval boundaries, execute eight deterministic LangGraph runtimes, inspect Pydantic enforcement events, replay or fork durable checkpoints, and evaluate exactly how failures propagate across agents.
 
 This is not a chat UI wrapped around a model. It is a full-stack reliability workbench built around the control-plane problems that matter once an agent reaches a real environment: typed handoffs, evidence provenance, context budgets, bounded tool authority, human approval, idempotency, replay, and honest measurement.
@@ -272,6 +274,20 @@ VITE_ASSURANCE_V1=true pnpm dev
 Open any scenario and use **Results → Analysis / Run / Evals** without leaving the canvas. **Analyze Design** reports heuristic architecture feedback; legacy **Run Workflow** executes the registered backend. In the optional Assurance Workbench, explicitly bind canvas nodes to allowlisted operations, add typed handoff/evidence nodes, compile the current graph, then compare clean, malformed-output, and schema-valid-falsehood fixtures against the same candidate.
 
 Core fixture execution requires no provider key. The runtime sets `pydantic_ai.models.ALLOW_MODEL_REQUESTS = False` before fixture runs.
+
+## Deploy on Railway
+
+The checked-in `Dockerfile` builds the Vite frontend and serves it from the FastAPI application, so the complete product runs from one public origin. `railway.toml` configures the health check and restart policy.
+
+For durable SQLite and LangGraph checkpoint state, attach a Railway volume at `/data` and set:
+
+```text
+REAGENT_DATA_DIR=/data
+REAGENT_STATIC_DIR=/app/dist
+REAGENT_ASSURANCE_V1=true
+```
+
+The production frontend uses same-origin `/api/*` requests automatically. Local development continues to default to `http://localhost:8000`.
 
 ## Verification
 
